@@ -28,7 +28,7 @@ export async function POST(request: Request) {
         }
 
         const results = await new Promise((resolve, reject) => {
-            const pythonExecutable = 'python3';
+            const pythonExecutable = 'python';
             const scriptPath = path.resolve('./scripts/parser.py');
 
             console.log(`🚀 Запускаю скрипт: ${pythonExecutable} ${scriptPath} ${tempDir}`);
