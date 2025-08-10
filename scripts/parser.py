@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Union
 
-# Функція find_all_json_in_binary залишається без змін
+# find_all_json_in_binary залишається без змін
 def find_all_json_in_binary(data: bytes) -> list:
     found_jsons = []
     i = 0
@@ -33,17 +33,13 @@ def find_all_json_in_binary(data: bytes) -> list:
             i += 1
     return found_jsons
 
-# Функція parse_single_replay залишається без змін
-def parse_single_replay(replay_path: str) -> Union[tuple[str, list], tuple[None, None]]:
+def parse_single_replay(replay_path: str) -> Union[dict, None]:
     try:
         with open(replay_path, 'rb') as f:
-            try:
-                replay_data = zlib.decompress(f.read()[8:])
-            except zlib.error:
-                f.seek(0)
-                replay_data = f.read()
+            try: replay_data = zlib.decompress(f.read()[8:])
+            except zlib.error: f.seek(0); replay_data = f.read()
     except Exception:
-        return None, None
+        return None
 
     all_jsons = find_all_json_in_binary(replay_data)
     battle_metadata, battle_results = None, None
@@ -52,19 +48,18 @@ def parse_single_replay(replay_path: str) -> Union[tuple[str, list], tuple[None,
         if 'playerName' in obj and 'mapDisplayName' in obj and 'vehicles' in obj:
             if 'damageDealt' not in next(iter(obj['vehicles'].values()), {}):
                 battle_metadata = obj
-
         if 'vehicles' in obj:
             first_vehicle = next(iter(obj.get('vehicles', {}).values()), None)
             if isinstance(first_vehicle, list) and first_vehicle and 'damageDealt' in first_vehicle[0]:
                 battle_results = obj
 
     if not battle_metadata or not battle_results:
-        return None, None
+        return None
 
     map_name = battle_metadata.get('mapDisplayName', 'Невідома карта')
     main_player_name = battle_metadata.get('playerName')
     if not main_player_name:
-        return None, None
+        return None
 
     main_player_team = None
     vehicles_in_metadata = battle_metadata.get('vehicles', {})
@@ -74,44 +69,47 @@ def parse_single_replay(replay_path: str) -> Union[tuple[str, list], tuple[None,
             break
 
     if not main_player_team:
-        return None, None
+        return None
+
+    # --- ФІНАЛЬНА ВИПРАВЛЕНА ЛОГІКА ---
+    # Шукаємо 'winnerTeam' всередині блоку 'common'
+    common_data = battle_results.get('common', {})
+    winner_team = common_data.get('winnerTeam', 0)
+    outcome = 'draw'
+
+    try:
+        if int(winner_team) == int(main_player_team):
+            outcome = 'win'
+        elif int(winner_team) != 0:
+            outcome = 'loss'
+    except (ValueError, TypeError):
+        outcome = 'draw'
 
     allied_team_stats = []
     vehicles_in_results = battle_results.get('vehicles', {})
     for vehicle_data_list in vehicles_in_results.values():
         if not vehicle_data_list: continue
-
         player_data = vehicle_data_list[0]
-        if player_data.get('team') == main_player_team:
-            assisted_track = player_data.get('damageAssistedTrack', 0)
-            assisted_radio = player_data.get('damageAssistedRadio', 0)
-            total_assisted = assisted_track + assisted_radio
-
+        # Порівнюємо номери команд як числа для надійності
+        if player_data.get('team') is not None and int(player_data.get('team')) == int(main_player_team):
+            assisted_track = player_data.get('damageAssistedTrack', 0); assisted_radio = player_data.get('damageAssistedRadio', 0)
             allied_team_stats.append({
-                'name': player_data.get('name'),
-                'damage': player_data.get('damageDealt', 0),
-                'kills': player_data.get('kills', 0),
-                'assisted_damage': total_assisted,
+                'name': player_data.get('name'), 'damage': player_data.get('damageDealt', 0),
+                'kills': player_data.get('kills', 0), 'assisted_damage': assisted_track + assisted_radio,
                 'tank': player_data.get('vehicleType', 'N/A').split(':')[-1]
             })
 
-    allies_in_metadata = [
-        {'name': p.get('name'), 'tank': p.get('vehicleType', 'N/A').split(':')[-1]}
-        for p in vehicles_in_metadata.values() if p.get('team') == main_player_team
-    ]
+    allies_in_metadata = [{'name': p.get('name'), 'tank': p.get('vehicleType', 'N/A').split(':')[-1]} for p in vehicles_in_metadata.values() if p.get('team') == main_player_team]
 
     final_stats = []
     for i, stats_from_results in enumerate(allied_team_stats):
         if i < len(allies_in_metadata):
-            stats_from_results['name'] = allies_in_metadata[i]['name']
-            stats_from_results['tank'] = allies_in_metadata[i]['tank']
-
+            stats_from_results['name'] = allies_in_metadata[i]['name']; stats_from_results['tank'] = allies_in_metadata[i]['tank']
         if not stats_from_results['name']:
             stats_from_results['name'] = f"Гравець на {stats_from_results['tank']}"
-
         final_stats.append(stats_from_results)
 
-    return map_name, final_stats
+    return {'map_name': map_name, 'outcome': outcome, 'allied_stats': final_stats}
 
 def process_replays_in_folder(folder_path: str):
     replay_files = glob.glob(os.path.join(folder_path, "*.wotreplay"))
@@ -119,22 +117,30 @@ def process_replays_in_folder(folder_path: str):
         return {}
 
     player_stats = defaultdict(lambda: {'battles': [],'total_damage': 0,'total_kills': 0,'total_assisted': 0})
+    map_stats = defaultdict(lambda: {'wins': 0, 'battles': 0})
 
     for replay_path in replay_files:
-        map_name, allied_data = parse_single_replay(replay_path)
-        if allied_data:
+        replay_data = parse_single_replay(replay_path)
+        if replay_data:
+            map_name = replay_data['map_name']
+            outcome = replay_data['outcome']
+            allied_data = replay_data['allied_stats']
+
+            map_stats[map_name]['battles'] += 1
+            if outcome == 'win':
+                map_stats[map_name]['wins'] += 1
+
             for player in allied_data:
                 player_name = player['name']
-                player_stats[player_name]['battles'].append({'map': map_name,'tank': player['tank'],'damage': player['damage'],'kills': player['kills'],'assisted_damage': player['assisted_damage']})
+                player_stats[player_name]['battles'].append({'map': map_name, 'tank': player['tank'], 'damage': player['damage'], 'kills': player['kills'], 'assisted_damage': player['assisted_damage']})
                 player_stats[player_name]['total_damage'] += player['damage']
                 player_stats[player_name]['total_kills'] += player['kills']
                 player_stats[player_name]['total_assisted'] += player['assisted_damage']
 
-    return player_stats
+    return {'player_stats': player_stats, 'map_stats': map_stats}
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         folder_path = sys.argv[1]
         results = process_replays_in_folder(folder_path)
-        # Виводимо результат як JSON в стандартний вивід
         print(json.dumps(results))

@@ -1,4 +1,4 @@
-// file: app/api/analyze/route.ts
+// file: src/app/api/analyze/route.ts
 import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import fs from 'fs/promises';
@@ -22,29 +22,30 @@ export async function POST(request: Request) {
             await fs.writeFile(path.join(tempDir, file.name), buffer);
         }
 
-        // FIX 1: Додаємо перевірку, щоб переконати TypeScript, що tempDir не є null
         if (!tempDir) {
             throw new Error("Не вдалося створити тимчасову теку.");
         }
+
+        // --- ОСЬ ВИРІШЕННЯ ---
+        // Створюємо нову константу з гарантованим типом 'string'
+        const finalTempDir = tempDir;
 
         const results = await new Promise((resolve, reject) => {
             const pythonExecutable = 'python';
             const scriptPath = path.resolve('./scripts/parser.py');
 
-            console.log(`🚀 Запускаю скрипт: ${pythonExecutable} ${scriptPath} ${tempDir}`);
+            console.log(`🚀 Запускаю скрипт: ${pythonExecutable} ${scriptPath} ${finalTempDir}`);
 
-            // Тепер TypeScript впевнений, що tempDir - це рядок (string)
-            const pythonProcess = spawn(pythonExecutable, [scriptPath, tempDir]);
+            // і використовуємо саме цю нову константу тут
+            const pythonProcess = spawn(pythonExecutable, [scriptPath, finalTempDir]);
 
             let stdout = '';
             let stderr = '';
 
-            // FIX 2: Вказуємо тип `Buffer` для параметра data
             pythonProcess.stdout.on('data', (data: Buffer) => {
                 stdout += data.toString();
             });
 
-            // FIX 2: Вказуємо тип `Buffer` для параметра data
             pythonProcess.stderr.on('data', (data: Buffer) => {
                 console.error(`PYTHON STDERR: ${data.toString()}`);
                 stderr += data.toString();
@@ -52,13 +53,15 @@ export async function POST(request: Request) {
 
             pythonProcess.on('close', (code) => {
                 console.log(`🐍 Python-скрипт завершився з кодом: ${code}`);
-                console.log(`STDOUT: ${stdout.slice(0, 200)}...`);
-
                 if (code === 0) {
                     try {
+                        if (stdout.trim() === '') {
+                            reject(new Error('Python-скрипт повернув порожній результат.'));
+                            return;
+                        }
                         resolve(JSON.parse(stdout));
                     } catch (e) {
-                        reject(new Error('Помилка парсингу JSON з Python. Можливо, вивід порожній або некоректний.'));
+                        reject(new Error('Помилка парсингу JSON з Python.'));
                     }
                 } else {
                     reject(new Error(`Помилка виконання Python-скрипта: ${stderr}`));
@@ -67,9 +70,8 @@ export async function POST(request: Request) {
 
             pythonProcess.on('error', (err) => {
                 console.error("Помилка запуску процесу Python:", err);
-                // Спробуємо запустити з 'python', якщо 'python3' не знайдено
-                if ((err as any).code === 'ENOENT') {
-                    reject(new Error(`Команду '${pythonExecutable}' не знайдено. Перевірте, чи встановлено Python і чи доступний він у системному PATH як 'python3' або 'python'.`));
+                if ((err as { code?: string }).code === 'ENOENT') {
+                    reject(new Error(`Команду '${pythonExecutable}' не знайдено. Перевірте, що Python додано до системного PATH.`));
                 } else {
                     reject(new Error(`Не вдалося запустити Python: ${err.message}`));
                 }

@@ -11,8 +11,8 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-    title: "Аналізатор реплеїв World of Tanks",
-    description: "Завантажте та проаналізуйте статистику ваших боїв у WoT",
+    title: "Аналізатор АБС реплеїв WOT",
+    description: "Завантажте та проаналізуйте статистику вашої команди",
 };
 
 export default function RootLayout({
