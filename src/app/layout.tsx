@@ -1,6 +1,7 @@
 // file: src/app/layout.tsx
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
+import Link from 'next/link';
 import "./globals.css";
 
 // Налаштовуємо шрифт Montserrat з потрібними наборами та товщиною
@@ -25,6 +26,20 @@ export default function RootLayout({
         <body
             className={`${montserrat.variable} font-sans bg-gray-50 text-gray-800 antialiased`}
         >
+        {/* Проста навігація */}
+        <nav className="bg-white shadow-md mb-4">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-center h-16 gap-8">
+                    <Link href="/" className="text-gray-700 hover:text-blue-600 font-semibold">
+                        Аналіз АБС
+                    </Link>
+                    <Link href="/random-battles" className="text-gray-700 hover:text-blue-600 font-semibold">
+                        Аналіз РАНДОМ
+                    </Link>
+                </div>
+            </div>
+        </nav>
+
         <main className="p-4 sm:p-6 lg:p-8">
             {children}
         </main>
