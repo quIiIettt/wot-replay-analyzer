@@ -30,6 +30,51 @@ type SortConfig = {
     direction: 'ascending' | 'descending';
 };
 
+function batchFilesBySize(files: File[], maxBatchBytes = 25 * 1024 * 1024): File[][] {
+    const batches: File[][] = [];
+    let cur: File[] = []; let curBytes = 0;
+
+    for (const f of files) {
+        if (cur.length && curBytes + f.size > maxBatchBytes) {
+            batches.push(cur);
+            cur = [f]; curBytes = f.size;
+        } else {
+            cur.push(f); curBytes += f.size;
+        }
+    }
+    if (cur.length) batches.push(cur);
+    return batches;
+}
+
+function mergeAnalysisResults(parts: AnalysisResults[]): AnalysisResults {
+    const out: AnalysisResults = { player_stats: {}, map_stats: {} };
+
+    for (const r of parts) {
+        // merge player_stats
+        for (const [name, ps] of Object.entries(r.player_stats)) {
+            const dst = (out.player_stats[name] ??= {
+                battles: [],
+                total_damage: 0,
+                total_kills: 0,
+                total_assisted: 0,
+            });
+            dst.battles.push(...ps.battles);
+            dst.total_damage += ps.total_damage;
+            dst.total_kills += ps.total_kills;
+            dst.total_assisted += ps.total_assisted;
+        }
+
+        // merge map_stats
+        for (const [map, ms] of Object.entries(r.map_stats)) {
+            const dst = (out.map_stats[map] ??= { wins: 0, battles: 0 });
+            dst.wins += ms.wins;
+            dst.battles += ms.battles;
+        }
+    }
+
+    return out;
+}
+
 
 export default function ReplayUploader() {
     const [files, setFiles] = useState<File[]>([]);
@@ -75,19 +120,39 @@ export default function ReplayUploader() {
         setIsLoading(true);
         setError(null);
         setResults(null);
-        const formData = new FormData();
-        files.forEach((file) => formData.append('replays', file));
+
         try {
-            const response = await fetch('/api/analyze', { method: 'POST', body: formData });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || 'Помилка аналізу');
+            const batches = batchFilesBySize(files, 25 * 1024 * 1024); // ~25MB на батч
+            const parts: AnalysisResults[] = [];
+
+            for (const group of batches) {
+                const fd = new FormData();
+                group.forEach((file) => fd.append('replays', file, file.name));
+
+                const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+
+                // важливо: читаємо як текст, потім пробуємо JSON
+                const text = await res.text();
+                let json: AnalysisResults;
+                try {
+                    json = JSON.parse(text) as AnalysisResults;
+                } catch {
+                    throw new Error(`Server status ${res.status}. Body (first 200): ${text.slice(0, 200)}`);
+                }
+
+                if (!json.player_stats || Object.keys(json.player_stats).length === 0) {
+                    // не валимо весь процес — просто пропускаємо «порожній» батч
+                    continue;
+                }
+                parts.push(json);
             }
-            const data: AnalysisResults = await response.json();
-            if (!data.player_stats || Object.keys(data.player_stats).length === 0) {
-                throw new Error("Не вдалося обробити реплеї.");
+
+            const merged = mergeAnalysisResults(parts);
+            if (!merged.player_stats || Object.keys(merged.player_stats).length === 0) {
+                throw new Error('Не вдалося обробити реплеї (усі батчі порожні).');
             }
-            setResults(data);
+
+            setResults(merged);
             setView('summary');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Невідома помилка');
@@ -95,6 +160,7 @@ export default function ReplayUploader() {
             setIsLoading(false);
         }
     };
+
 
     const processedPlayerData = useMemo(() => {
         if (!results?.player_stats) return [];
