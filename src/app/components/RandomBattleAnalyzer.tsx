@@ -309,7 +309,7 @@ export default function RandomBattleAnalyzer() {
                                             <td colSpan={8} className="p-4">
                                                 <h4 className="font-semibold text-md mb-2">Деталі по картах для {trimTankName(tank.tankName)}:</h4>
 
-                                                <table className="w-full text-left text-xs bg-white rounded-md border">
+                                                <table className="w-full text-left text-xs bg-white rounded-md border-b border-gray-200 hover:bg-gray-50">
                                                     <thead className="bg-gray-100">
                                                     <tr>
                                                         <th className="px-2 py-1 font-semibold">Карта</th>
@@ -366,7 +366,7 @@ export default function RandomBattleAnalyzer() {
                                                             return 0;
                                                         })
                                                         .map(map => (
-                                                            <tr key={map.mapName} className="border-b last:border-b-0">
+                                                            <tr key={map.mapName} className="border-b border-gray-200 hover:bg-gray-50">
                                                                 <td className="px-2 py-1">{map.mapName}</td>
                                                                 <td className="px-2 py-1 text-center">{map.battles}</td>
                                                                 <td className={`px-2 py-1 text-center font-semibold ${getWinrateColor(map.winrate)}`}>
