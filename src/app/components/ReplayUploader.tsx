@@ -30,16 +30,26 @@ type SortConfig = {
     direction: 'ascending' | 'descending';
 };
 
-function batchFilesBySize(files: File[], maxBatchBytes = 25 * 1024 * 1024): File[][] {
+function batchFilesBySize(
+    files: File[],
+    maxBatchBytes = 16 * 1024 * 1024, // ~16 MB
+    maxFilesPerBatch = 25
+): File[][] {
     const batches: File[][] = [];
-    let cur: File[] = []; let curBytes = 0;
+    let cur: File[] = [];
+    let curBytes = 0;
 
     for (const f of files) {
-        if (cur.length && curBytes + f.size > maxBatchBytes) {
+        const fitsBySize = curBytes + f.size <= maxBatchBytes;
+        const fitsByCount = cur.length < maxFilesPerBatch;
+
+        if (cur.length && (!fitsBySize || !fitsByCount)) {
             batches.push(cur);
-            cur = [f]; curBytes = f.size;
+            cur = [f];
+            curBytes = f.size;
         } else {
-            cur.push(f); curBytes += f.size;
+            cur.push(f);
+            curBytes += f.size;
         }
     }
     if (cur.length) batches.push(cur);
@@ -122,7 +132,7 @@ export default function ReplayUploader() {
         setResults(null);
 
         try {
-            const batches = batchFilesBySize(files, 25 * 1024 * 1024); // ~25MB на батч
+            const batches = batchFilesBySize(files, 16 * 1024 * 1024, 25);
             const parts: AnalysisResults[] = [];
 
             for (const group of batches) {
