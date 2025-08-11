@@ -3,14 +3,14 @@ FROM node:20-alpine AS builder
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
-# dev-залежності потрібні для білду
+# dev-залежності потрібні для білду (typescript/@types тощо)
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# (часто потрібно для sharp)
+# для sharp (часто потрібно на Alpine)
 RUN apk add --no-cache libc6-compat
 
-# копіюємо код і збираємо
+# копіюємо увесь код і збираємо
 COPY . .
 RUN npm run build
 
@@ -21,19 +21,18 @@ ENV NODE_ENV=production \
     PORT=3000
 WORKDIR /app
 
-# залежності рантайму (без dev)
+# рантайм-залежності без dev
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 
-# (для sharp)
+# для sharp
 RUN apk add --no-cache libc6-compat
 
-# мінімальний набір файлів для старту next start
+# копіюємо тільки те, що реально потрібно для `next start`
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.* ./
-COPY --from=builder /app/tsconfig*.json ./
-COPY --from=builder /app/eslint.config.mjs /app/postcss.config.mjs /app/tailwind.config.* ./ 2>/dev/null || true
+
+# (НЕ копіюємо next.config/tsconfig/eslint — вони не потрібні у рантаймі)
 
 EXPOSE 3000
 CMD ["npm", "start"]
