@@ -4,7 +4,6 @@
 import { useState, useMemo } from 'react';
 import { UploadCloud, Rocket, FileText, Loader2, XCircle, ArrowUpDown } from 'lucide-react';
 
-// --- Типи даних ---
 type Battle = {
     map: string;
     tank: string;
@@ -41,7 +40,6 @@ export default function ReplayUploader() {
     const [minBattles, setMinBattles] = useState(1);
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'avgDamage', direction: 'descending' });
 
-    // --- ДОПОМІЖНІ ФУНКЦІЇ ПЕРЕМІЩЕНО ВСЕРЕДИНУ КОМПОНЕНТА ---
     const getWinrateColor = (winrate: number): string => {
         if (winrate <= 46) return 'text-red-500';
         if (winrate <= 52) return 'text-yellow-500';

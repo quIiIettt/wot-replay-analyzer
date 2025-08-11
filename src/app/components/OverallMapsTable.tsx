@@ -94,8 +94,8 @@ export default function OverallMapsTable({ results, title = 'Усі карти (
         });
 
         arr.sort((a, b) => {
-            let va: number | string = a[sortKey];
-            let vb: number | string = b[sortKey];
+            const va: number | string = a[sortKey];
+            const vb: number | string = b[sortKey];
             // алфавіт для назви карти
             if (sortKey === 'mapName') {
                 const res = String(va).localeCompare(String(vb), 'uk', { sensitivity: 'base' });

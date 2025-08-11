@@ -38,7 +38,6 @@ type MapSortConfig = {
     direction: 'ascending' | 'descending';
 };
 
-// --- Допоміжні функції ---
 const trimTankName = (fullName: string): string => {
     const underscoreIndex = fullName.indexOf('_');
     if (underscoreIndex === -1) { return fullName; }

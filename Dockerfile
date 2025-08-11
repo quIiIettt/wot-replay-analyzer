@@ -1,40 +1,39 @@
 # ---------- Build stage ----------
 FROM node:20-alpine AS builder
 
-# потрібен Python лише якщо залежності/скрипти щось збирають під час build
-RUN apk add --no-cache python3 py3-pip
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 
-COPY package*.json ./
+# Виносимо тільки файли залежностей для кешу
+COPY package.json package-lock.json* ./
 RUN npm ci
 
-# ЯВНО копіюємо потрібні каталоги, щоб не залежати від .dockerignore
-COPY src ./src
-COPY public ./public
-COPY scripts ./scripts
-COPY next.config.* ./
-COPY tsconfig*.json ./
-COPY eslint.config.mjs postcss.config.mjs ./
+# Копіюємо решту коду
+COPY . .
 
+# (опційно) увімкни standalone у next.config.js: module.exports = { output: 'standalone' }
 RUN npm run build
 
 # ---------- Runtime stage ----------
-FROM node:20-alpine
+FROM node:20-alpine AS runner
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
 
 WORKDIR /app
 
-# продовий рантайм
-RUN apk add --no-cache python3 \
-  && ln -sf /usr/bin/python3 /usr/bin/python  # щоб spawn('python') точно спрацював
-
-# мінімум файлів для старту
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+# Копіюємо standalone-рантайм і статичні файли
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/scripts ./scripts
 
-ENV NODE_ENV=production
+# COPY --from=builder /app/scripts ./scripts
+
+# Безпека: запускаємо від користувача node
+USER node
+
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
