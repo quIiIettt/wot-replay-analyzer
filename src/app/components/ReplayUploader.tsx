@@ -135,7 +135,7 @@ export default function ReplayUploader() {
     };
 
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6 mt-6">
+        <div className="w-full max-w-7xl mx-auto space-y-6">
             <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-sm">
                 <h2 className="text-lg font-semibold text-gray-800 mb-3">Завантаження реплеїв АБС</h2>
                 <div className="flex flex-col sm:flex-row items-center gap-3">
