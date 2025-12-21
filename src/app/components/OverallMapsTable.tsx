@@ -31,19 +31,19 @@ type Props = {
 
 // --- Хелпери кольорів/метрик ---
 const getWinrateColor = (winrate: number): string => {
-    if (winrate <= 46) return 'text-red-500';
-    if (winrate <= 52) return 'text-yellow-500';
-    if (winrate <= 57) return 'text-green-500';
-    if (winrate <= 63) return 'text-cyan-400';
-    return 'text-purple-500';
+    if (winrate <= 46) return 'text-rose-300';
+    if (winrate <= 52) return 'text-amber-300';
+    if (winrate <= 57) return 'text-emerald-300';
+    if (winrate <= 63) return 'text-cyan-300';
+    return 'text-fuchsia-300';
 };
 const getAvgDamageColor = (damage: number): string => {
-    if (damage <= 1500) return 'text-red-500';
-    if (damage <= 2001) return 'text-orange-500';
-    if (damage <= 2501) return 'text-yellow-500';
-    if (damage <= 3201) return 'text-green-500';
-    if (damage <= 3900) return 'text-cyan-400';
-    return 'text-purple-500';
+    if (damage <= 1500) return 'text-rose-300';
+    if (damage <= 2001) return 'text-orange-300';
+    if (damage <= 2501) return 'text-amber-300';
+    if (damage <= 3201) return 'text-emerald-300';
+    if (damage <= 3900) return 'text-cyan-300';
+    return 'text-fuchsia-300';
 };
 
 type SortKey = 'mapName' | 'battles' | 'winrate' | 'survivability' | 'avgDamage' | 'avgKills' | 'avgAssisted';
@@ -110,15 +110,15 @@ export default function OverallMapsTable({ results, title = 'Усі карти (
     }, [results, sortKey, direction]);
 
     return (
-        <div className="bg-white p-4  rounded-lg shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                <MapIcon className="w-5 h-5 mr-2 text-gray-600" />
+        <div className="glass-panel p-4">
+            <h2 className="text-base font-semibold text-white mb-3 flex items-center">
+                <MapIcon className="w-4 h-4 mr-2 text-slate-300" />
                 {title}
             </h2>
 
-            <div className="overflow-x-auto ">
-                <table className="w-full text-left text-sm ">
-                    <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+            <div className="table-shell overflow-x-auto overflow-y-visible">
+                <table className="w-full text-left text-xs sm:text-sm text-slate-200 ">
+                    <thead className="table-head">
                     <tr>
                         <Th label="Карта" onClick={() => handleSort('mapName')} />
                         <Th label="Боїв" center onClick={() => handleSort('battles')} />
@@ -129,20 +129,20 @@ export default function OverallMapsTable({ results, title = 'Усі карти (
                         <Th label="Сер. асист" center onClick={() => handleSort('avgAssisted')} />
                     </tr>
                     </thead>
-                    <tbody className="text-gray-700">
+                    <tbody className="text-slate-200/90">
                     {rows.map(row => (
-                        <tr key={row.mapName} className="border-b border-gray-200 ">
-                            <td className="px-3 py-2 font-medium">{row.mapName}</td>
-                            <td className="px-3 py-2 text-center">{row.battles}</td>
-                            <td className={`px-3 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>
+                        <tr key={row.mapName} className="table-row">
+                            <td className="px-2.5 py-1.5 font-medium">{row.mapName}</td>
+                            <td className="px-2.5 py-1.5 text-center">{row.battles}</td>
+                            <td className={`px-2.5 py-1.5 text-center font-semibold ${getWinrateColor(row.winrate)}`}>
                                 {row.winrate.toFixed(1)}%
                             </td>
-                            <td className="px-3 py-2 text-center">{row.survivability.toFixed(1)}%</td>
-                            <td className={`px-3 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>
+                            <td className="px-2.5 py-1.5 text-center">{row.survivability.toFixed(1)}%</td>
+                            <td className={`px-2.5 py-1.5 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>
                                 {row.avgDamage.toFixed(0)}
                             </td>
-                            <td className="px-3 py-2 text-center">{row.avgKills.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-center">{row.avgAssisted.toFixed(0)}</td>
+                            <td className="px-2.5 py-1.5 text-center">{row.avgKills.toFixed(2)}</td>
+                            <td className="px-2.5 py-1.5 text-center">{row.avgAssisted.toFixed(0)}</td>
                         </tr>
                     ))}
                     </tbody>
@@ -150,7 +150,7 @@ export default function OverallMapsTable({ results, title = 'Усі карти (
             </div>
 
             {/* Маленька підказка */}
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-slate-300 mt-1">
                 Підсумки по кожній карті зібрані з усіх реплеїв незалежно від техніки.
             </p>
         </div>
@@ -161,7 +161,7 @@ export default function OverallMapsTable({ results, title = 'Усі карти (
 function Th({ label, onClick, center = false }: { label: string; onClick?: () => void; center?: boolean }) {
     return (
         <th
-            className={`px-3 py-2 font-semibold ${center ? 'text-center' : ''} cursor-pointer hover:bg-gray-200`}
+            className={`px-2.5 py-1.5 font-semibold ${center ? 'text-center' : ''} cursor-pointer hover:bg-white/10`}
             onClick={onClick}
         >
             <div className={`flex items-center ${center ? 'justify-center' : ''}`}>

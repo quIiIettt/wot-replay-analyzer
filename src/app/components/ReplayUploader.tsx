@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { UploadCloud, Rocket, FileText, Loader2, XCircle, ArrowUpDown } from 'lucide-react';
+import { UploadCloud, Rocket, FileText, Loader2, XCircle, ArrowUpDown, Shield } from 'lucide-react';
 
 type Battle = {
     map: string;
@@ -94,21 +94,22 @@ export default function ReplayUploader() {
     const [view, setView] = useState<'summary' | 'details'>('summary');
     const [minBattles, setMinBattles] = useState(1);
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'avgDamage', direction: 'descending' });
+    const fileInputId = 'replay-files';
 
     const getWinrateColor = (winrate: number): string => {
-        if (winrate <= 46) return 'text-red-500';
-        if (winrate <= 52) return 'text-yellow-500';
-        if (winrate <= 57) return 'text-green-500';
-        if (winrate <= 63) return 'text-cyan-400';
-        return 'text-purple-500';
+        if (winrate <= 46) return 'text-rose-300';
+        if (winrate <= 52) return 'text-amber-300';
+        if (winrate <= 57) return 'text-emerald-300';
+        if (winrate <= 63) return 'text-cyan-300';
+        return 'text-fuchsia-300';
     };
     const getAvgDamageColor = (damage: number): string => {
-        if (damage <= 1400) return 'text-red-500';
-        if (damage <= 1601) return 'text-orange-500';
-        if (damage <= 1901) return 'text-yellow-500';
-        if (damage <= 2301) return 'text-green-500';
-        if (damage <= 2601) return 'text-cyan-400';
-        return 'text-purple-500';
+        if (damage <= 1400) return 'text-rose-300';
+        if (damage <= 1601) return 'text-orange-300';
+        if (damage <= 1901) return 'text-amber-300';
+        if (damage <= 2301) return 'text-emerald-300';
+        if (damage <= 2601) return 'text-cyan-300';
+        return 'text-fuchsia-300';
     };
     const trimTankName = (fullName: string): string => {
         const parts = fullName.split('_');
@@ -120,8 +121,9 @@ export default function ReplayUploader() {
 
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files) {
-            setFiles(Array.from(event.target.files));
+        const nextFiles = event.target.files ? Array.from(event.target.files) : [];
+        if (nextFiles.length) {
+            setFiles(nextFiles);
             setError(null);
         }
     };
@@ -211,46 +213,59 @@ export default function ReplayUploader() {
     };
 
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6">
-            <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-800 mb-3">Завантаження реплеїв АБС</h2>
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                    <label className="flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
+        <div className="relative z-10 w-full max-w-5xl mx-auto space-y-6">
+            <div className="glass-panel p-4 sm:p-5">
+                <h2 className="text-lg sm:text-xl font-semibold text-white mb-3 flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-cyan-300" />
+                    АБС — аналіз реплеїв
+                </h2>
+                <div className="flex flex-col lg:flex-row items-center gap-3">
+                    <input
+                        id={fileInputId}
+                        type="file"
+                        multiple
+                        accept=".wotreplay,.WOTREPLAY"
+                        onChange={handleFileChange}
+                        onClick={(event) => {
+                            event.currentTarget.value = '';
+                        }}
+                        className="sr-only"
+                    />
+                    <label htmlFor={fileInputId} className="btn-ghost w-full sm:w-auto text-xs sm:text-sm font-medium">
                         <UploadCloud className="w-4 h-4 mr-2" />
                         <span>Обрати файли</span>
-                        <input type="file" multiple accept=".wotreplay" onChange={handleFileChange} className="hidden" />
                     </label>
-                    <p className="text-gray-500 text-sm flex-grow">
+                    <p className="text-slate-300 text-xs sm:text-sm flex-1">
                         {files.length > 0 ? `Обрано файлів: ${files.length}` : 'Будь ласка, оберіть .wotreplay файли'}
                     </p>
-                    <button onClick={handleAnalyze} disabled={files.length === 0 || isLoading} className="flex items-center justify-center w-full sm:w-auto px-5 py-2 bg-slate-900 text-white text-sm font-semibold rounded-md disabled:bg-slate-400 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors">
+                    <button onClick={handleAnalyze} disabled={files.length === 0 || isLoading} className="btn-primary w-full sm:w-auto text-xs sm:text-sm font-semibold">
                         {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Rocket className="w-4 h-4 mr-2" />}
                         <span>{isLoading ? 'Аналіз...' : 'Почати аналіз'}</span>
                     </button>
                 </div>
             </div>
 
-            {error && ( <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded-md"><div className="flex items-center"><XCircle className="w-5 h-5 text-red-600 mr-2"/><div><p className="font-semibold text-red-800 text-sm">Помилка</p><p className="text-red-700 text-sm">{error}</p></div></div></div> )}
+            {error && ( <div className="glass-card border border-rose-400/30 bg-rose-500/10 p-4"><div className="flex items-center"><XCircle className="w-5 h-5 text-rose-300 mr-2"/><div><p className="font-semibold text-rose-200 text-sm">Помилка</p><p className="text-rose-100/80 text-sm">{error}</p></div></div></div> )}
 
             {results && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-1 bg-white p-4 border border-gray-200 rounded-lg shadow-sm">
-                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Статистика по картах</h2>
-                        <div className="overflow-y-auto max-h-[600px]">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-gray-100 text-gray-600 uppercase text-xs sticky top-0">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-1 glass-panel p-4">
+                        <h2 className="text-base font-semibold text-white mb-3">Статистика по картах</h2>
+                        <div className="table-shell overflow-x-auto overflow-y-visible">
+                            <table className="w-full text-left text-xs sm:text-sm text-slate-200">
+                                <thead className="table-head">
                                 <tr>
-                                    <th className="px-3 py-2 font-semibold">Карта</th>
-                                    <th className="px-3 py-2 font-semibold text-center">Боїв</th>
-                                    <th className="px-3 py-2 font-semibold text-center">WR %</th>
+                                    <th className="px-2.5 py-1.5 font-semibold">Карта</th>
+                                    <th className="px-2.5 py-1.5 font-semibold text-center">Боїв</th>
+                                    <th className="px-2.5 py-1.5 font-semibold text-center">WR %</th>
                                 </tr>
                                 </thead>
-                                <tbody className="text-gray-700">
+                                <tbody className="text-slate-200/90">
                                 {mapStatistics.map((map) => (
-                                    <tr key={map.mapName} className="border-b border-gray-200 hover:bg-gray-50">
-                                        <td className="px-3 py-2 font-medium">{map.mapName}</td>
-                                        <td className="px-3 py-2 text-center">{map.battles}</td>
-                                        <td className={`px-3 py-2 text-center font-bold ${getWinrateColor(map.winrate)}`}>
+                                    <tr key={map.mapName} className="table-row">
+                                        <td className="px-2.5 py-1.5 font-medium">{map.mapName}</td>
+                                        <td className="px-2.5 py-1.5 text-center">{map.battles}</td>
+                                        <td className={`px-2.5 py-1.5 text-center font-bold ${getWinrateColor(map.winrate)}`}>
                                             {map.winrate.toFixed(1)}%
                                         </td>
                                     </tr>
@@ -260,44 +275,44 @@ export default function ReplayUploader() {
                         </div>
                     </div>
 
-                    <div className="lg:col-span-2 bg-white p-4 border border-gray-200 rounded-lg shadow-sm">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-                            <h2 className="text-lg font-semibold text-gray-800">Статистика по гравцях</h2>
-                            <div className='flex items-center gap-4 w-full sm:w-auto'>
-                                <div className="flex items-center gap-2"><label htmlFor="min-battles" className="text-sm text-gray-600">Мін. боїв:</label><input id="min-battles" type="number" value={minBattles} onChange={(e) => setMinBattles(Number(e.target.value) || 1)} className="w-16 p-1 border border-gray-300 rounded-md text-sm text-center" min="1"/></div>
-                                <button onClick={() => setView(view === 'summary' ? 'details' : 'summary')} className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors w-full sm:w-auto justify-center"><FileText className="w-4 h-4 mr-2" /><span>{view === 'summary' ? 'Детальний звіт' : 'Загальна статистика'}</span></button>
+                    <div className="lg:col-span-2 glass-panel p-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-3">
+                            <h2 className="text-base font-semibold text-white">Статистика по гравцях</h2>
+                            <div className='flex items-center gap-3 w-full sm:w-auto'>
+                                <div className="flex items-center gap-2"><label htmlFor="min-battles" className="text-xs sm:text-sm text-slate-300">Мін. боїв:</label><input id="min-battles" type="number" value={minBattles} onChange={(e) => setMinBattles(Number(e.target.value) || 1)} className="w-14 rounded-md border border-white/20 bg-white/5 p-0.5 text-center text-xs sm:text-sm text-slate-100" min="1"/></div>
+                                <button onClick={() => setView(view === 'summary' ? 'details' : 'summary')} className="btn-ghost w-full sm:w-auto text-xs sm:text-sm font-medium"><FileText className="w-4 h-4 mr-2" /><span>{view === 'summary' ? 'Детальний звіт' : 'Загальна статистика'}</span></button>
                             </div>
                         </div>
 
                         {view === 'summary' ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+                            <div className="table-shell overflow-x-auto overflow-y-visible">
+                                <table className="w-full text-left text-xs sm:text-sm text-slate-200">
+                                    <thead className="table-head">
                                     <tr>
-                                        <th className="px-3 py-2 font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort('name')}><div className="flex items-center">Нікнейм гравця <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('battleCount')}><div className="flex items-center justify-center">Боїв <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('avgDamage')}><div className="flex items-center justify-center">Сер. урон <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('avgKills')}><div className="flex items-center justify-center">Сер. кілли <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('avgAssisted')}><div className="flex items-center justify-center">Сер. асист <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
+                                        <th className="px-2.5 py-1.5 font-semibold cursor-pointer hover:bg-white/10" onClick={() => handleSort('name')}><div className="flex items-center">Нікнейм гравця <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
+                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('battleCount')}><div className="flex items-center justify-center">Боїв <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
+                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgDamage')}><div className="flex items-center justify-center">Сер. урон <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
+                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgKills')}><div className="flex items-center justify-center">Сер. кілли <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
+                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgAssisted')}><div className="flex items-center justify-center">Сер. асист <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
                                     </tr>
                                     </thead>
-                                    <tbody className="text-gray-700">
-                                    {processedPlayerData.map((p) => ( <tr key={p.name} className="border-b border-gray-200 hover:bg-gray-50"><td className="px-3 py-2 font-medium">{p.name}</td><td className="px-3 py-2 text-center">{p.battleCount}</td><td className={`px-3 py-2 text-center font-bold ${getAvgDamageColor(p.avgDamage)}`}>{p.avgDamage.toFixed(0)}</td><td className="px-3 py-2 text-center">{p.avgKills.toFixed(2)}</td><td className="px-3 py-2 text-center">{p.avgAssisted.toFixed(0)}</td></tr> ))}
+                                    <tbody className="text-slate-200/90">
+                                    {processedPlayerData.map((p) => ( <tr key={p.name} className="table-row"><td className="px-2.5 py-1.5 font-medium">{p.name}</td><td className="px-2.5 py-1.5 text-center">{p.battleCount}</td><td className={`px-2.5 py-1.5 text-center font-bold ${getAvgDamageColor(p.avgDamage)}`}>{p.avgDamage.toFixed(0)}</td><td className="px-2.5 py-1.5 text-center">{p.avgKills.toFixed(2)}</td><td className="px-2.5 py-1.5 text-center">{p.avgAssisted.toFixed(0)}</td></tr> ))}
                                     </tbody>
                                 </table>
                             </div>
                         ) : (
-                            <div className="mt-6 space-y-4 max-h-[550px] overflow-y-auto pr-2">
+                            <div className="mt-4 space-y-3">
                                 {processedPlayerData.map((p) => (
                                     <div key={p.name}>
-                                        <h3 className="text-base font-semibold text-gray-800 mb-2">{p.name}</h3>
-                                        <div className="overflow-x-auto border border-gray-200 rounded-md">
+                                        <h3 className="text-sm font-semibold text-white mb-2">{p.name}</h3>
+                                        <div className="table-shell overflow-x-auto overflow-y-visible">
                                             <table className="w-full text-left text-xs">
-                                                <thead className="bg-gray-100 text-gray-600"><tr><th className="px-3 py-2 font-semibold">Мапа</th><th className="px-3 py-2 font-semibold">Техніка</th><th className="px-3 py-2 font-semibold text-center">Урон</th><th className="px-3 py-2 font-semibold text-center">Кілли</th><th className="px-3 py-2 font-semibold text-center">Асист</th></tr></thead>
-                                                <tbody className="text-gray-700">
-                                                {p.stats.battles.map((b, index) => ( <tr key={index} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50"><td className="px-3 py-2">{b.map}</td><td className="px-3 py-2">{trimTankName(b.tank)}</td><td className="px-3 py-2 text-center font-medium">{b.damage}</td><td className="px-3 py-2 text-center">{b.kills}</td><td className="px-3 py-2 text-center">{b.assisted_damage}</td></tr> ))}
+                                                <thead className="table-head"><tr><th className="px-2.5 py-1.5 font-semibold">Мапа</th><th className="px-2.5 py-1.5 font-semibold">Техніка</th><th className="px-2.5 py-1.5 font-semibold text-center">Урон</th><th className="px-2.5 py-1.5 font-semibold text-center">Кілли</th><th className="px-2.5 py-1.5 font-semibold text-center">Асист</th></tr></thead>
+                                                <tbody className="text-slate-200/90">
+                                                {p.stats.battles.map((b, index) => ( <tr key={index} className="table-row last:border-b-0"><td className="px-2.5 py-1.5">{b.map}</td><td className="px-2.5 py-1.5">{trimTankName(b.tank)}</td><td className="px-2.5 py-1.5 text-center font-medium">{b.damage}</td><td className="px-2.5 py-1.5 text-center">{b.kills}</td><td className="px-2.5 py-1.5 text-center">{b.assisted_damage}</td></tr> ))}
                                                 </tbody>
-                                                <tfoot><tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold"><td colSpan={2} className="px-3 py-2 text-right text-gray-600">СЕРЕДНІ ЗНАЧЕННЯ:</td><td className={`px-3 py-2 text-center ${getAvgDamageColor(p.avgDamage)}`}>{p.avgDamage.toFixed(0)}</td><td className="px-3 py-2 text-center">{p.avgKills.toFixed(2)}</td><td className="px-3 py-2 text-center">{p.avgAssisted.toFixed(0)}</td></tr></tfoot>
+                                                <tfoot><tr className="border-t border-white/15 bg-white/5 font-semibold"><td colSpan={2} className="px-2.5 py-1.5 text-right text-slate-300">СЕРЕДНІ ЗНАЧЕННЯ:</td><td className={`px-2.5 py-1.5 text-center ${getAvgDamageColor(p.avgDamage)}`}>{p.avgDamage.toFixed(0)}</td><td className="px-2.5 py-1.5 text-center">{p.avgKills.toFixed(2)}</td><td className="px-2.5 py-1.5 text-center">{p.avgAssisted.toFixed(0)}</td></tr></tfoot>
                                             </table>
                                         </div>
                                     </div>

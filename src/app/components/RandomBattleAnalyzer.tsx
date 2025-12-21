@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
-import { UploadCloud, Rocket, Loader2, XCircle, ChevronDown, ChevronUp, ArrowUpDown, Trophy, Map as MapIcon } from 'lucide-react';
+import { UploadCloud, Rocket, Loader2, XCircle, ChevronDown, ChevronUp, ArrowUpDown, Trophy, Map as MapIcon, Swords } from 'lucide-react';
 import OverallMapsTable from './OverallMapsTable';
 
 // --- Типи даних ---
@@ -48,19 +48,19 @@ const trimTankName = (fullName: string): string => {
     return fullName;
 };
 const getWinrateColor = (winrate: number): string => {
-    if (winrate <= 46) return 'text-red-500';
-    if (winrate <= 52) return 'text-yellow-500';
-    if (winrate <= 57) return 'text-green-500';
-    if (winrate <= 63) return 'text-cyan-400';
-    return 'text-purple-500';
+    if (winrate <= 46) return 'text-rose-300';
+    if (winrate <= 52) return 'text-amber-300';
+    if (winrate <= 57) return 'text-emerald-300';
+    if (winrate <= 63) return 'text-cyan-300';
+    return 'text-fuchsia-300';
 };
 const getAvgDamageColor = (damage: number): string => {
-    if (damage <= 1500) return 'text-red-500';
-    if (damage <= 2001) return 'text-orange-500';
-    if (damage <= 2501) return 'text-yellow-500';
-    if (damage <= 3201) return 'text-green-500';
-    if (damage <= 3900) return 'text-cyan-400';
-    return 'text-purple-500';
+    if (damage <= 1500) return 'text-rose-300';
+    if (damage <= 2001) return 'text-orange-300';
+    if (damage <= 2501) return 'text-amber-300';
+    if (damage <= 3201) return 'text-emerald-300';
+    if (damage <= 3900) return 'text-cyan-300';
+    return 'text-fuchsia-300';
 };
 
 export default function RandomBattleAnalyzer() {
@@ -69,6 +69,8 @@ export default function RandomBattleAnalyzer() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [expandedTank, setExpandedTank] = useState<string | null>(null);
+    const [section, setSection] = useState<'overview' | 'maps' | 'tanks'>('overview');
+    const fileInputId = 'random-replay-files';
 
     // загальне сортування по техніці (верхня таблиця)
     const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'battles', direction: 'descending' });
@@ -90,7 +92,8 @@ export default function RandomBattleAnalyzer() {
     };
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files) setFiles(Array.from(event.target.files));
+        const nextFiles = event.target.files ? Array.from(event.target.files) : [];
+        if (nextFiles.length) setFiles(nextFiles);
     };
 
     const handleAnalyze = async () => {
@@ -107,6 +110,7 @@ export default function RandomBattleAnalyzer() {
             const data = await response.json();
             if (Object.keys(data).length === 0) throw new Error("Не вдалося обробити реплеї.");
             setResults(data);
+            setSection('overview');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Невідома помилка');
         } finally {
@@ -178,22 +182,35 @@ export default function RandomBattleAnalyzer() {
     };
 
     return (
-        <div className="w-full max-w-7xl mx-auto space-y-6">
-            <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-800 mb-3">Завантаження реплеїв (випадкові бої)</h2>
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                    <label className="flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
+        <div className="relative z-10 w-full max-w-5xl mx-auto space-y-6">
+            <div className="glass-panel p-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-white mb-3 flex items-center gap-2">
+                    <Swords className="h-4 w-4 text-cyan-300" />
+                    Випадкові бої — аналіз реплеїв
+                </h2>
+                <div className="flex flex-col lg:flex-row items-center gap-3">
+                    <input
+                        id={fileInputId}
+                        type="file"
+                        multiple
+                        accept=".wotreplay,.WOTREPLAY"
+                        onChange={handleFileChange}
+                        onClick={(event) => {
+                            event.currentTarget.value = '';
+                        }}
+                        className="sr-only"
+                    />
+                    <label htmlFor={fileInputId} className="btn-ghost w-full sm:w-auto text-xs sm:text-sm font-medium">
                         <UploadCloud className="w-4 h-4 mr-2" />
                         <span>Обрати файли</span>
-                        <input type="file" multiple accept=".wotreplay" onChange={handleFileChange} className="hidden" />
                     </label>
-                    <p className="text-gray-500 text-sm flex-grow">
+                    <p className="text-slate-300 text-xs sm:text-sm flex-1">
                         {files.length > 0 ? `Обрано файлів: ${files.length}` : 'Будь ласка, оберіть .wotreplay файли'}
                     </p>
                     <button
                         onClick={handleAnalyze}
                         disabled={files.length === 0 || isLoading}
-                        className="flex items-center justify-center w-full sm:w-auto px-5 py-2 bg-slate-900 text-white text-sm font-semibold rounded-md disabled:bg-slate-400 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
+                        className="btn-primary w-full sm:w-auto text-xs sm:text-sm font-semibold"
                     >
                         {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Rocket className="w-4 h-4 mr-2" />}
                         <span>{isLoading ? 'Аналіз...' : 'Почати аналіз'}</span>
@@ -202,44 +219,70 @@ export default function RandomBattleAnalyzer() {
             </div>
 
             {error && (
-                <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded-md">
+                <div className="glass-card border border-rose-400/30 bg-rose-500/10 p-4">
                     <div className="flex items-center">
-                        <XCircle className="w-5 h-5 text-red-600 mr-2" />
+                        <XCircle className="w-5 h-5 text-rose-300 mr-2" />
                         <div>
-                            <p className="font-semibold text-red-800 text-sm">Помилка</p>
-                            <p className="text-red-700 text-sm">{error}</p>
+                            <p className="font-semibold text-rose-200 text-sm">Помилка</p>
+                            <p className="text-rose-100/80 text-sm">{error}</p>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* --- Загальна статистика по картах --- */}
             {results && (
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setSection('overview')}
+                        className={`btn-ghost shrink-0 whitespace-nowrap text-xs sm:text-sm font-medium ${section === 'overview' ? 'border-white/50 bg-white/10 text-white' : ''}`}
+                    >
+                        Огляд
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSection('maps')}
+                        className={`btn-ghost shrink-0 whitespace-nowrap text-xs sm:text-sm font-medium ${section === 'maps' ? 'border-white/50 bg-white/10 text-white' : ''}`}
+                    >
+                        Усі карти
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSection('tanks')}
+                        className={`btn-ghost shrink-0 whitespace-nowrap text-xs sm:text-sm font-medium ${section === 'tanks' ? 'border-white/50 bg-white/10 text-white' : ''}`}
+                    >
+                        Результати по техніці
+                    </button>
+                </div>
+            )}
 
-                <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-sm">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+            {/* --- Загальна статистика по картах --- */}
+            {results && section === 'overview' && (
+
+                <div className="glass-panel p-4">
+                    <h2 className="text-base font-semibold text-white mb-3 flex items-center">
                         <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
                         Найкращі карти (загальний результат)
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {overallMapStats.slice(0, 3).map(map => (
-                            <div key={map.mapName} className="bg-gray-50 border border-gray-200 p-3 rounded-md">
-                                <p className="font-bold text-gray-800 flex items-center">
-                                    <MapIcon className="w-4 h-4 mr-2 text-gray-500" />
+                            <div key={map.mapName} className="glass-card p-3">
+                                <p className="font-bold text-white flex items-center">
+                                    <MapIcon className="w-4 h-4 mr-2 text-slate-300" />
                                     {map.mapName}
                                 </p>
                                 <div className="mt-2 text-sm space-y-1">
                                     <div className="flex justify-between">
-                                        <span className="text-gray-600">Сер. урон:</span>
+                                        <span className="text-slate-300">Сер. урон:</span>
                                         <span className={`font-semibold ${getAvgDamageColor(map.avgDamage)}`}>{map.avgDamage.toFixed(0)}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-gray-600">Вінрейт:</span>
+                                        <span className="text-slate-300">Вінрейт:</span>
                                         <span className={`font-semibold ${getWinrateColor(map.winrate)}`}>{map.winrate.toFixed(1)}%</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-gray-600">Боїв:</span>
-                                        <span className="text-gray-800">{map.battles}</span>
+                                        <span className="text-slate-300">Боїв:</span>
+                                        <span className="text-white">{map.battles}</span>
                                     </div>
                                 </div>
                             </div>
@@ -248,95 +291,96 @@ export default function RandomBattleAnalyzer() {
                 </div>
             )}
 
-            {results && (
+            {results && section === 'maps' && (
                 <div>
                     <OverallMapsTable results={results} />
                 </div>
             )}
 
-            {results && (
+            {results && section === 'tanks' && (
 
-                <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-sm">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4">Результати по техніці</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+                <div className="glass-panel p-4">
+                    <h2 className="text-base font-semibold text-white mb-3">Результати по техніці</h2>
+                    <div className="table-shell overflow-x-auto overflow-y-visible">
+                        <table className="w-full text-left text-xs sm:text-sm text-slate-200">
+                            <thead className="table-head">
                             <tr>
-                                <th className="px-3 py-2 font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort('tankName')}>
+                                <th className="px-2.5 py-1.5 font-semibold cursor-pointer hover:bg-white/10" onClick={() => handleSort('tankName')}>
                                     <div className="flex items-center">Техніка <ArrowUpDown className="w-3 h-3 ml-1" /></div>
                                 </th>
-                                <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('battles')}>
+                                <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('battles')}>
                                     <div className="flex items-center justify-center">Боїв <ArrowUpDown className="w-3 h-3 ml-1" /></div>
                                 </th>
-                                <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('winrate')}>
+                                <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('winrate')}>
                                     <div className="flex items-center justify-center">WR % <ArrowUpDown className="w-3 h-3 ml-1" /></div>
                                 </th>
-                                <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('survivability')}>
+                                <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('survivability')}>
                                     <div className="flex items-center justify-center">Живучість % <ArrowUpDown className="w-3 h-3 ml-1" /></div>
                                 </th>
-                                <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('avgDamage')}>
+                                <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgDamage')}>
                                     <div className="flex items-center justify-center">Сер. урон <ArrowUpDown className="w-3 h-3 ml-1" /></div>
                                 </th>
-                                <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('avgKills')}>
+                                <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgKills')}>
                                     <div className="flex items-center justify-center">Сер. кілли <ArrowUpDown className="w-3 h-3 ml-1" /></div>
                                 </th>
-                                <th className="px-3 py-2 font-semibold text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('avgAssisted')}>
+                                <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgAssisted')}>
                                     <div className="flex items-center justify-center">Сер. асист <ArrowUpDown className="w-3 h-3 ml-1" /></div>
                                 </th>
-                                <th className="px-3 py-2 font-semibold text-center">Карти</th>
+                                <th className="px-2.5 py-1.5 font-semibold text-center">Карти</th>
                             </tr>
                             </thead>
-                            <tbody className="text-gray-700">
+                            <tbody className="text-slate-200/90">
                             {processedData.map((tank) => (
                                 <Fragment key={tank.tankName}>
-                                    <tr className="border-b border-gray-200 hover:bg-gray-50">
-                                        <td className="px-3 py-2 font-bold">{trimTankName(tank.tankName)}</td>
-                                        <td className="px-3 py-2 text-center">{tank.battles}</td>
-                                        <td className={`px-3 py-2 text-center font-semibold ${getWinrateColor(tank.winrate)}`}>{tank.winrate.toFixed(1)}%</td>
-                                        <td className="px-3 py-2 text-center">{tank.survivability.toFixed(1)}%</td>
-                                        <td className={`px-3 py-2 text-center font-bold ${getAvgDamageColor(tank.avgDamage)}`}>{tank.avgDamage.toFixed(0)}</td>
-                                        <td className="px-3 py-2 text-center">{tank.avgKills.toFixed(2)}</td>
-                                        <td className="px-3 py-2 text-center">{tank.avgAssisted.toFixed(0)}</td>
-                                        <td className="px-3 py-2 text-center">
-                                            <button onClick={() => toggleTankDetails(tank.tankName)} className="p-1 text-gray-500 hover:text-blue-600">
+                                    <tr className="table-row">
+                                        <td className="px-2.5 py-1.5 font-bold">{trimTankName(tank.tankName)}</td>
+                                        <td className="px-2.5 py-1.5 text-center">{tank.battles}</td>
+                                        <td className={`px-2.5 py-1.5 text-center font-semibold ${getWinrateColor(tank.winrate)}`}>{tank.winrate.toFixed(1)}%</td>
+                                        <td className="px-2.5 py-1.5 text-center">{tank.survivability.toFixed(1)}%</td>
+                                        <td className={`px-2.5 py-1.5 text-center font-bold ${getAvgDamageColor(tank.avgDamage)}`}>{tank.avgDamage.toFixed(0)}</td>
+                                        <td className="px-2.5 py-1.5 text-center">{tank.avgKills.toFixed(2)}</td>
+                                        <td className="px-2.5 py-1.5 text-center">{tank.avgAssisted.toFixed(0)}</td>
+                                        <td className="px-2.5 py-1.5 text-center">
+                                            <button onClick={() => toggleTankDetails(tank.tankName)} className="p-1 text-slate-300 hover:text-blue-600">
                                                 {expandedTank === tank.tankName ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
                                             </button>
                                         </td>
                                     </tr>
 
                                     {expandedTank === tank.tankName && (
-                                        <tr className="bg-gray-50">
+                                        <tr className="bg-white/5">
                                             <td colSpan={8} className="p-4">
                                                 <h4 className="font-semibold text-md mb-2">Деталі по картах для {trimTankName(tank.tankName)}:</h4>
 
-                                                <table className="w-full text-left text-xs bg-white rounded-md border-b border-gray-200 hover:bg-gray-50">
-                                                    <thead className="bg-gray-100">
+                                                <div className="table-shell overflow-x-auto overflow-y-visible">
+                                                    <table className="w-full text-left text-xs text-slate-200">
+                                                    <thead className="table-head">
                                                     <tr>
                                                         <th className="px-2 py-1 font-semibold">Карта</th>
 
                                                         <th
-                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-gray-200"
+                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-white/10"
                                                             onClick={() => handleMapSort(tank.tankName, 'battles')}
                                                         >
                                                             Боїв <ArrowUpDown className="inline w-3 h-3 ml-1" />
                                                         </th>
 
                                                         <th
-                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-gray-200"
+                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-white/10"
                                                             onClick={() => handleMapSort(tank.tankName, 'winrate')}
                                                         >
                                                             WR % <ArrowUpDown className="inline w-3 h-3 ml-1" />
                                                         </th>
 
                                                         <th
-                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-gray-200"
+                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-white/10"
                                                             onClick={() => handleMapSort(tank.tankName, 'survivability')}
                                                         >
                                                             Живучість % <ArrowUpDown className="inline w-3 h-3 ml-1" />
                                                         </th>
 
                                                         <th
-                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-gray-200"
+                                                            className="px-2 py-1 font-semibold text-center cursor-pointer hover:bg-white/10"
                                                             onClick={() => handleMapSort(tank.tankName, 'avgDamage')}
                                                         >
                                                             Сер. урон <ArrowUpDown className="inline w-3 h-3 ml-1" />
@@ -366,7 +410,7 @@ export default function RandomBattleAnalyzer() {
                                                             return 0;
                                                         })
                                                         .map(map => (
-                                                            <tr key={map.mapName} className="border-b border-gray-200 hover:bg-gray-50">
+                                                            <tr key={map.mapName} className="table-row">
                                                                 <td className="px-2 py-1">{map.mapName}</td>
                                                                 <td className="px-2 py-1 text-center">{map.battles}</td>
                                                                 <td className={`px-2 py-1 text-center font-semibold ${getWinrateColor(map.winrate)}`}>
@@ -379,7 +423,8 @@ export default function RandomBattleAnalyzer() {
                                                             </tr>
                                                         ))}
                                                     </tbody>
-                                                </table>
+                                                    </table>
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
