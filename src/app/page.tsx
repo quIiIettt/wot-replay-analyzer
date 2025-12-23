@@ -24,7 +24,11 @@ export default function Home() {
               type="button"
               onClick={() => setMode('abs')}
               aria-pressed={mode === 'abs'}
-              className={`btn-ghost text-xs sm:text-sm font-medium ${mode === 'abs' ? 'border-white/50 bg-white/10 text-white' : ''}`}
+              className={`btn-ghost text-xs sm:text-sm font-medium ${
+                mode === 'abs'
+                  ? 'border-cyan-300/70 bg-gradient-to-r from-cyan-400/25 via-sky-300/15 to-emerald-300/25 text-white shadow-[0_0_18px_rgba(56,189,248,0.35)]'
+                  : ''
+              }`}
             >
               <Shield className="h-4 w-4" />
               АБС
@@ -33,7 +37,11 @@ export default function Home() {
               type="button"
               onClick={() => setMode('random')}
               aria-pressed={mode === 'random'}
-              className={`btn-ghost text-xs sm:text-sm font-medium ${mode === 'random' ? 'border-white/50 bg-white/10 text-white' : ''}`}
+              className={`btn-ghost text-xs sm:text-sm font-medium ${
+                mode === 'random'
+                  ? 'border-amber-300/70 bg-gradient-to-r from-amber-400/25 via-orange-300/15 to-rose-300/20 text-white shadow-[0_0_18px_rgba(251,191,36,0.35)]'
+                  : ''
+              }`}
             >
               <Swords className="h-4 w-4" />
               Випадкові бої

@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
-import { UploadCloud, Rocket, Loader2, XCircle, ChevronDown, ChevronUp, ArrowUpDown, Trophy, Map as MapIcon, Swords } from 'lucide-react';
+import { UploadCloud, Rocket, Loader2, XCircle, ChevronDown, ChevronUp, ArrowUpDown, Trophy, Map as MapIcon, Swords, Ban, BarChart3 } from 'lucide-react';
 import OverallMapsTable from './OverallMapsTable';
 
 // --- Типи даних ---
@@ -69,7 +69,7 @@ export default function RandomBattleAnalyzer() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [expandedTank, setExpandedTank] = useState<string | null>(null);
-    const [section, setSection] = useState<'overview' | 'maps' | 'tanks'>('overview');
+    const [section, setSection] = useState<'overview' | 'maps' | 'tanks' | 'insights'>('overview');
     const fileInputId = 'random-replay-files';
 
     // загальне сортування по техніці (верхня таблиця)
@@ -171,6 +171,77 @@ export default function RandomBattleAnalyzer() {
             .sort((a, b) => b.avgDamage - a.avgDamage); // сортуємо за середнім уроном
     }, [results]);
 
+    const insightMinBattles = 5;
+    const insightData = useMemo(() => {
+        if (!results) {
+            return {
+                badMaps: [],
+                goodMaps: [],
+                popularMaps: [],
+                badTanks: [],
+                goodTanks: [],
+                popularTanks: [],
+                maxMapAvgDamage: 0,
+                maxMapBattles: 0,
+                maxTankAvgDamage: 0,
+                maxTankBattles: 0,
+            };
+        }
+
+        const mapRows = overallMapStats.map((map) => ({
+            mapName: map.mapName,
+            battles: map.battles,
+            avgDamage: map.avgDamage,
+        }));
+        const filteredMaps = mapRows.filter((map) => map.battles >= insightMinBattles);
+        const badMaps = [...filteredMaps]
+            .sort((a, b) => a.avgDamage - b.avgDamage)
+            .slice(0, 3);
+        const goodMaps = [...filteredMaps]
+            .sort((a, b) => b.avgDamage - a.avgDamage)
+            .slice(0, 3);
+        const popularMaps = [...filteredMaps]
+            .sort((a, b) => b.battles - a.battles)
+            .slice(0, 3);
+
+        const tankRows = Object.entries(results).map(([tankName, stats]) => {
+            const battles = stats.battles;
+            return {
+                tankName: trimTankName(tankName),
+                battles,
+                avgDamage: battles > 0 ? stats.total_damage / battles : 0,
+            };
+        });
+        const filteredTanks = tankRows.filter((tank) => tank.battles >= insightMinBattles);
+        const badTanks = [...filteredTanks]
+            .sort((a, b) => a.avgDamage - b.avgDamage)
+            .slice(0, 3);
+        const goodTanks = [...filteredTanks]
+            .sort((a, b) => b.avgDamage - a.avgDamage)
+            .slice(0, 3);
+        const popularTanks = [...filteredTanks]
+            .sort((a, b) => b.battles - a.battles)
+            .slice(0, 3);
+
+        const maxMapAvgDamage = filteredMaps.reduce((max, map) => Math.max(max, map.avgDamage), 0);
+        const maxMapBattles = filteredMaps.reduce((max, map) => Math.max(max, map.battles), 0);
+        const maxTankAvgDamage = filteredTanks.reduce((max, tank) => Math.max(max, tank.avgDamage), 0);
+        const maxTankBattles = filteredTanks.reduce((max, tank) => Math.max(max, tank.battles), 0);
+
+        return {
+            badMaps,
+            goodMaps,
+            popularMaps,
+            badTanks,
+            goodTanks,
+            popularTanks,
+            maxMapAvgDamage,
+            maxMapBattles,
+            maxTankAvgDamage,
+            maxTankBattles,
+        };
+    }, [results, overallMapStats]);
+
     const toggleTankDetails = (tankName: string) => {
         setExpandedTank(expandedTank === tankName ? null : tankName);
     };
@@ -252,6 +323,13 @@ export default function RandomBattleAnalyzer() {
                         className={`btn-ghost shrink-0 whitespace-nowrap text-xs sm:text-sm font-medium ${section === 'tanks' ? 'border-white/50 bg-white/10 text-white' : ''}`}
                     >
                         Результати по техніці
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSection('insights')}
+                        className={`btn-ghost shrink-0 whitespace-nowrap text-xs sm:text-sm font-medium ${section === 'insights' ? 'border-white/50 bg-white/10 text-white' : ''}`}
+                    >
+                        Аналітика
                     </button>
                 </div>
             )}
@@ -432,6 +510,250 @@ export default function RandomBattleAnalyzer() {
                             ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {results && section === 'insights' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <div className="glass-panel p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Ban className="h-4 w-4 text-rose-300" />
+                            <h3 className="text-base font-semibold text-white">Бан топ-3 карт</h3>
+                        </div>
+                        <p className="text-xs text-slate-300 mb-3">
+                            Мінімум {insightMinBattles} боїв. Нижчий середній урон = гірша карта.
+                        </p>
+                        {insightData.badMaps.length === 0 ? (
+                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу карт.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {insightData.badMaps.map((map) => (
+                                    <div key={map.mapName} className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-slate-200">
+                                            <span className="font-medium">{map.mapName}</span>
+                                            <span className="text-slate-300">{map.avgDamage.toFixed(0)} dmg</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-rose-400 via-orange-300 to-amber-300"
+                                                style={{
+                                                    width: `${Math.max(
+                                                        8,
+                                                        Math.min(
+                                                            100,
+                                                            insightData.maxMapAvgDamage > 0
+                                                                ? (map.avgDamage / insightData.maxMapAvgDamage) * 100
+                                                                : 0
+                                                        )
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="glass-panel p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Trophy className="h-4 w-4 text-emerald-300" />
+                            <h3 className="text-base font-semibold text-white">Топ-3 карт по урону</h3>
+                        </div>
+                        <p className="text-xs text-slate-300 mb-3">
+                            Мінімум {insightMinBattles} боїв. Вищий середній урон = краща карта.
+                        </p>
+                        {insightData.goodMaps.length === 0 ? (
+                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу карт.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {insightData.goodMaps.map((map) => (
+                                    <div key={map.mapName} className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-slate-200">
+                                            <span className="font-medium">{map.mapName}</span>
+                                            <span className="text-slate-300">{map.avgDamage.toFixed(0)} dmg</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-300"
+                                                style={{
+                                                    width: `${Math.max(
+                                                        8,
+                                                        Math.min(
+                                                            100,
+                                                            insightData.maxMapAvgDamage > 0
+                                                                ? (map.avgDamage / insightData.maxMapAvgDamage) * 100
+                                                                : 0
+                                                        )
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="glass-panel p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <MapIcon className="h-4 w-4 text-cyan-300" />
+                            <h3 className="text-base font-semibold text-white">Найпопулярніші карти</h3>
+                        </div>
+                        <p className="text-xs text-slate-300 mb-3">
+                            Мінімум {insightMinBattles} боїв. Більше боїв = популярніша карта.
+                        </p>
+                        {insightData.popularMaps.length === 0 ? (
+                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу карт.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {insightData.popularMaps.map((map) => (
+                                    <div key={map.mapName} className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-slate-200">
+                                            <span className="font-medium">{map.mapName}</span>
+                                            <span className="text-slate-300">{map.battles} боїв</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-indigo-300"
+                                                style={{
+                                                    width: `${Math.max(
+                                                        8,
+                                                        Math.min(
+                                                            100,
+                                                            insightData.maxMapBattles > 0
+                                                                ? (map.battles / insightData.maxMapBattles) * 100
+                                                                : 0
+                                                        )
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="glass-panel p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <BarChart3 className="h-4 w-4 text-amber-300" />
+                            <h3 className="text-base font-semibold text-white">Бан топ-3 техніки</h3>
+                        </div>
+                        <p className="text-xs text-slate-300 mb-3">
+                            Мінімум {insightMinBattles} боїв. Оцінка за середнім уроном.
+                        </p>
+                        {insightData.badTanks.length === 0 ? (
+                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу техніки.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {insightData.badTanks.map((tank) => (
+                                    <div key={tank.tankName} className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-slate-200">
+                                            <span className="font-medium">{tank.tankName}</span>
+                                            <span className="text-slate-300">{tank.avgDamage.toFixed(0)} dmg</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-amber-300 via-emerald-300 to-cyan-300"
+                                                style={{
+                                                    width: `${Math.max(
+                                                        8,
+                                                        Math.min(
+                                                            100,
+                                                            insightData.maxTankAvgDamage > 0
+                                                                ? (tank.avgDamage / insightData.maxTankAvgDamage) * 100
+                                                                : 0
+                                                        )
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="glass-panel p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Swords className="h-4 w-4 text-emerald-300" />
+                            <h3 className="text-base font-semibold text-white">Топ-3 техніки по урону</h3>
+                        </div>
+                        <p className="text-xs text-slate-300 mb-3">
+                            Мінімум {insightMinBattles} боїв. Вищий середній урон = краща техніка.
+                        </p>
+                        {insightData.goodTanks.length === 0 ? (
+                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу техніки.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {insightData.goodTanks.map((tank) => (
+                                    <div key={tank.tankName} className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-slate-200">
+                                            <span className="font-medium">{tank.tankName}</span>
+                                            <span className="text-slate-300">{tank.avgDamage.toFixed(0)} dmg</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-300"
+                                                style={{
+                                                    width: `${Math.max(
+                                                        8,
+                                                        Math.min(
+                                                            100,
+                                                            insightData.maxTankAvgDamage > 0
+                                                                ? (tank.avgDamage / insightData.maxTankAvgDamage) * 100
+                                                                : 0
+                                                        )
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="glass-panel p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <BarChart3 className="h-4 w-4 text-sky-300" />
+                            <h3 className="text-base font-semibold text-white">Найпопулярніші техніки</h3>
+                        </div>
+                        <p className="text-xs text-slate-300 mb-3">
+                            Мінімум {insightMinBattles} боїв. Більше боїв = популярніша техніка.
+                        </p>
+                        {insightData.popularTanks.length === 0 ? (
+                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу техніки.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {insightData.popularTanks.map((tank) => (
+                                    <div key={tank.tankName} className="space-y-1">
+                                        <div className="flex items-center justify-between text-xs text-slate-200">
+                                            <span className="font-medium">{tank.tankName}</span>
+                                            <span className="text-slate-300">{tank.battles} боїв</span>
+                                        </div>
+                                        <div className="h-2 rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-sky-300 via-cyan-300 to-indigo-300"
+                                                style={{
+                                                    width: `${Math.max(
+                                                        8,
+                                                        Math.min(
+                                                            100,
+                                                            insightData.maxTankBattles > 0
+                                                                ? (tank.battles / insightData.maxTankBattles) * 100
+                                                                : 0
+                                                        )
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
