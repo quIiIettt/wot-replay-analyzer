@@ -1,681 +1,684 @@
-// file: app/components/ReplayUploader.tsx
-'use client';
+﻿'use client';
 
-import { useState, useMemo } from 'react';
-import { UploadCloud, Rocket, FileText, Loader2, XCircle, ArrowUpDown, Shield, Ban, BarChart3, Map as MapIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowUpDown, Loader2, Rocket, Shield, UploadCloud, XCircle } from 'lucide-react';
 
 type Battle = {
-    map: string;
-    tank: string;
-    damage: number;
-    kills: number;
-    assisted_damage: number;
+  map: string;
+  tank: string;
+  damage: number;
+  kills: number;
+  assisted_damage: number;
 };
+
 type PlayerStats = {
-    battles: Battle[];
-    total_damage: number;
-    total_kills: number;
-    total_assisted: number;
+  battles: Battle[];
+  total_damage: number;
+  total_kills: number;
+  total_assisted: number;
 };
+
 type MapStats = {
-    wins: number;
-    battles: number;
+  wins: number;
+  battles: number;
 };
+
 type AnalysisResults = {
-    player_stats: Record<string, PlayerStats>;
-    map_stats: Record<string, MapStats>;
-};
-type SortConfig = {
-    key: string;
-    direction: 'ascending' | 'descending';
+  player_stats: Record<string, PlayerStats>;
+  map_stats: Record<string, MapStats>;
 };
 
-function batchFilesBySize(
-    files: File[],
-    maxBatchBytes = 16 * 1024 * 1024, // ~16 MB
-    maxFilesPerBatch = 25
-): File[][] {
-    const batches: File[][] = [];
-    let cur: File[] = [];
-    let curBytes = 0;
+type SortDirection = 'ascending' | 'descending';
+type PlayerSortKey = 'name' | 'battleCount' | 'avgDamage' | 'avgKills' | 'avgAssisted';
 
-    for (const f of files) {
-        const fitsBySize = curBytes + f.size <= maxBatchBytes;
-        const fitsByCount = cur.length < maxFilesPerBatch;
+type PlayerRow = {
+  name: string;
+  battleCount: number;
+  avgDamage: number;
+  avgKills: number;
+  avgAssisted: number;
+};
 
-        if (cur.length && (!fitsBySize || !fitsByCount)) {
-            batches.push(cur);
-            cur = [f];
-            curBytes = f.size;
-        } else {
-            cur.push(f);
-            curBytes += f.size;
-        }
+type MapPerformanceRow = {
+  mapName: string;
+  battles: number;
+  avgDamage: number;
+  avgKills: number;
+  avgAssisted: number;
+};
+
+type MapPlayerRow = {
+  mapName: string;
+  playerName: string;
+  battles: number;
+  avgDamage: number;
+  avgKills: number;
+  avgAssisted: number;
+};
+
+function trimTankName(fullName: string): string {
+  const parts = fullName.split('_');
+  if (parts.length > 1) {
+    return parts.slice(1).join('_');
+  }
+  return fullName;
+}
+
+function getWinrateColor(winrate: number): string {
+  if (winrate <= 46) return 'text-rose-300';
+  if (winrate <= 52) return 'text-amber-300';
+  if (winrate <= 57) return 'text-emerald-300';
+  if (winrate <= 63) return 'text-cyan-300';
+  return 'text-fuchsia-300';
+}
+
+function getAvgDamageColor(damage: number): string {
+  if (damage <= 1400) return 'text-rose-300';
+  if (damage <= 1700) return 'text-orange-300';
+  if (damage <= 2100) return 'text-amber-300';
+  if (damage <= 2600) return 'text-emerald-300';
+  if (damage <= 3200) return 'text-cyan-300';
+  return 'text-fuchsia-300';
+}
+
+function batchFilesBySize(files: File[], maxBatchBytes = 16 * 1024 * 1024, maxFilesPerBatch = 25): File[][] {
+  const batches: File[][] = [];
+  let current: File[] = [];
+  let currentBytes = 0;
+
+  for (const file of files) {
+    const fitsBySize = currentBytes + file.size <= maxBatchBytes;
+    const fitsByCount = current.length < maxFilesPerBatch;
+
+    if (current.length > 0 && (!fitsBySize || !fitsByCount)) {
+      batches.push(current);
+      current = [file];
+      currentBytes = file.size;
+    } else {
+      current.push(file);
+      currentBytes += file.size;
     }
-    if (cur.length) batches.push(cur);
-    return batches;
+  }
+
+  if (current.length > 0) {
+    batches.push(current);
+  }
+
+  return batches;
 }
 
 function mergeAnalysisResults(parts: AnalysisResults[]): AnalysisResults {
-    const out: AnalysisResults = { player_stats: {}, map_stats: {} };
+  const merged: AnalysisResults = {
+    player_stats: {},
+    map_stats: {},
+  };
 
-    for (const r of parts) {
-        // merge player_stats
-        for (const [name, ps] of Object.entries(r.player_stats)) {
-            const dst = (out.player_stats[name] ??= {
-                battles: [],
-                total_damage: 0,
-                total_kills: 0,
-                total_assisted: 0,
-            });
-            dst.battles.push(...ps.battles);
-            dst.total_damage += ps.total_damage;
-            dst.total_kills += ps.total_kills;
-            dst.total_assisted += ps.total_assisted;
-        }
+  for (const part of parts) {
+    for (const [playerName, playerStats] of Object.entries(part.player_stats)) {
+      const target =
+        merged.player_stats[playerName] ??
+        (merged.player_stats[playerName] = {
+          battles: [],
+          total_damage: 0,
+          total_kills: 0,
+          total_assisted: 0,
+        });
 
-        // merge map_stats
-        for (const [map, ms] of Object.entries(r.map_stats)) {
-            const dst = (out.map_stats[map] ??= { wins: 0, battles: 0 });
-            dst.wins += ms.wins;
-            dst.battles += ms.battles;
-        }
+      target.battles.push(...playerStats.battles);
+      target.total_damage += playerStats.total_damage;
+      target.total_kills += playerStats.total_kills;
+      target.total_assisted += playerStats.total_assisted;
     }
 
-    return out;
+    for (const [mapName, mapStats] of Object.entries(part.map_stats)) {
+      const target = merged.map_stats[mapName] ?? (merged.map_stats[mapName] = { wins: 0, battles: 0 });
+      target.wins += mapStats.wins;
+      target.battles += mapStats.battles;
+    }
+  }
+
+  return merged;
 }
 
-
 export default function ReplayUploader() {
-    const [files, setFiles] = useState<File[]>([]);
-    const [results, setResults] = useState<AnalysisResults | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [section, setSection] = useState<'stats' | 'insights'>('stats');
-    const [view, setView] = useState<'summary' | 'details'>('summary');
-    const [minBattles, setMinBattles] = useState(1);
-    const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'avgDamage', direction: 'descending' });
-    const fileInputId = 'replay-files';
+  const [files, setFiles] = useState<File[]>([]);
+  const [results, setResults] = useState<AnalysisResults | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    const getWinrateColor = (winrate: number): string => {
-        if (winrate <= 46) return 'text-rose-300';
-        if (winrate <= 52) return 'text-amber-300';
-        if (winrate <= 57) return 'text-emerald-300';
-        if (winrate <= 63) return 'text-cyan-300';
-        return 'text-fuchsia-300';
-    };
-    const getAvgDamageColor = (damage: number): string => {
-        if (damage <= 1400) return 'text-rose-300';
-        if (damage <= 1601) return 'text-orange-300';
-        if (damage <= 1901) return 'text-amber-300';
-        if (damage <= 2301) return 'text-emerald-300';
-        if (damage <= 2601) return 'text-cyan-300';
-        return 'text-fuchsia-300';
-    };
-    const trimTankName = (fullName: string): string => {
-        const parts = fullName.split('_');
-        if (parts.length > 1) {
-            return parts.slice(1).join('_');
-        }
-        return fullName;
-    };
+  const [section, setSection] = useState<'summary' | 'analytics'>('summary');
+  const [minBattles, setMinBattles] = useState(1);
+  const [mapMinBattles, setMapMinBattles] = useState(3);
+  const [selectedMap, setSelectedMap] = useState('');
+  const [playerSort, setPlayerSort] = useState<{ key: PlayerSortKey; direction: SortDirection }>({
+    key: 'avgDamage',
+    direction: 'descending',
+  });
 
+  const fileInputId = 'abs-replay-files';
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const nextFiles = event.target.files ? Array.from(event.target.files) : [];
-        if (nextFiles.length) {
-            setFiles(nextFiles);
-            setError(null);
-        }
-    };
-    const handleAnalyze = async () => {
-        if (files.length === 0) return;
-        setIsLoading(true);
-        setError(null);
-        setResults(null);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.files ? Array.from(event.target.files) : [];
+    setFiles(next);
+    setError(null);
+  };
+
+  const handleAnalyze = async () => {
+    if (files.length === 0) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setResults(null);
+
+    try {
+      const batches = batchFilesBySize(files, 16 * 1024 * 1024, 25);
+      const chunks: AnalysisResults[] = [];
+
+      for (const group of batches) {
+        const formData = new FormData();
+        group.forEach((file) => formData.append('replays', file, file.name));
+
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const rawText = await response.text();
+        let parsed: AnalysisResults;
 
         try {
-            const batches = batchFilesBySize(files, 16 * 1024 * 1024, 25);
-            const parts: AnalysisResults[] = [];
-
-            for (const group of batches) {
-                const fd = new FormData();
-                group.forEach((file) => fd.append('replays', file, file.name));
-
-                const res = await fetch('/api/analyze', { method: 'POST', body: fd });
-
-                // важливо: читаємо як текст, потім пробуємо JSON
-                const text = await res.text();
-                let json: AnalysisResults;
-                try {
-                    json = JSON.parse(text) as AnalysisResults;
-                } catch {
-                    throw new Error(`Server status ${res.status}. Body (first 200): ${text.slice(0, 200)}`);
-                }
-
-                if (!json.player_stats || Object.keys(json.player_stats).length === 0) {
-                    // не валимо весь процес — просто пропускаємо «порожній» батч
-                    continue;
-                }
-                parts.push(json);
-            }
-
-            const merged = mergeAnalysisResults(parts);
-            if (!merged.player_stats || Object.keys(merged.player_stats).length === 0) {
-                throw new Error('Не вдалося обробити реплеї (усі батчі порожні).');
-            }
-
-            setResults(merged);
-            setView('summary');
-            setSection('stats');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Невідома помилка');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-
-    const processedPlayerData = useMemo(() => {
-        if (!results?.player_stats) return [];
-        const playersWithAverages = Object.entries(results.player_stats).map(([name, stats]) => {
-            const battleCount = stats.battles.length;
-            return {
-                name, stats, battleCount,
-                avgDamage: battleCount > 0 ? stats.total_damage / battleCount : 0,
-                avgKills: battleCount > 0 ? stats.total_kills / battleCount : 0,
-                avgAssisted: battleCount > 0 ? stats.total_assisted / battleCount : 0,
-            };
-        });
-        const filteredPlayers = playersWithAverages.filter(p => p.battleCount >= minBattles);
-        const sortedPlayers = [...filteredPlayers].sort((a, b) => {
-            const key = sortConfig.key as keyof typeof a;
-            if (a[key] < b[key]) return sortConfig.direction === 'ascending' ? -1 : 1;
-            if (a[key] > b[key]) return sortConfig.direction === 'ascending' ? 1 : -1;
-            return 0;
-        });
-        return sortedPlayers;
-    }, [results, minBattles, sortConfig]);
-
-    const mapStatistics = useMemo(() => {
-        if (!results?.map_stats) return [];
-        return Object.entries(results.map_stats)
-            .map(([mapName, stats]) => ({
-                mapName,
-                ...stats,
-                winrate: stats.battles > 0 ? (stats.wins / stats.battles) * 100 : 0,
-            }))
-            .sort((a, b) => b.battles - a.battles);
-    }, [results]);
-
-    const insightMinBattles = 5;
-    const insightData = useMemo(() => {
-        if (!results) {
-            return {
-                badMaps: [],
-                goodMaps: [],
-                popularMaps: [],
-                badTanks: [],
-                goodTanks: [],
-                popularTanks: [],
-                maxMapAvgDamage: 0,
-                maxMapBattles: 0,
-                maxTankAvgDamage: 0,
-                maxTankBattles: 0,
-            };
+          parsed = JSON.parse(rawText) as AnalysisResults;
+        } catch {
+          throw new Error(`Сервер повернув некоректну відповідь (status ${response.status}).`);
         }
 
-        const mapDamage = new Map<string, { battles: number; totalDamage: number }>();
-        Object.values(results.player_stats).forEach((stats) => {
-            stats.battles.forEach((battle) => {
-                const entry = mapDamage.get(battle.map) ?? { battles: 0, totalDamage: 0 };
-                entry.battles += 1;
-                entry.totalDamage += battle.damage;
-                mapDamage.set(battle.map, entry);
-            });
-        });
+        if (parsed.player_stats && Object.keys(parsed.player_stats).length > 0) {
+          chunks.push(parsed);
+        }
+      }
 
-        const mapRows = Array.from(mapDamage.entries()).map(([mapName, stats]) => ({
-            mapName,
-            battles: stats.battles,
-            avgDamage: stats.battles > 0 ? stats.totalDamage / stats.battles : 0,
-        }));
-        const filteredMaps = mapRows.filter((map) => map.battles >= insightMinBattles);
-        const badMaps = [...filteredMaps]
-            .sort((a, b) => a.avgDamage - b.avgDamage)
-            .slice(0, 3);
-        const goodMaps = [...filteredMaps]
-            .sort((a, b) => b.avgDamage - a.avgDamage)
-            .slice(0, 3);
-        const popularMaps = [...filteredMaps]
-            .sort((a, b) => b.battles - a.battles)
-            .slice(0, 3);
+      const merged = mergeAnalysisResults(chunks);
+      if (!merged.player_stats || Object.keys(merged.player_stats).length === 0) {
+        throw new Error('Не вдалося обробити реплеї. Перевірте вміст файлів.');
+      }
 
-        const tankMap = new Map<string, { battles: number; totalDamage: number }>();
-        Object.values(results.player_stats).forEach((stats) => {
-            stats.battles.forEach((battle) => {
-                const tankName = trimTankName(battle.tank);
-                const entry = tankMap.get(tankName) ?? { battles: 0, totalDamage: 0 };
-                entry.battles += 1;
-                entry.totalDamage += battle.damage;
-                tankMap.set(tankName, entry);
-            });
-        });
+      setResults(merged);
+      setSection('summary');
+    } catch (analysisError) {
+      setError(analysisError instanceof Error ? analysisError.message : 'Невідома помилка аналізу.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        const tankRows = Array.from(tankMap.entries()).map(([tankName, stats]) => ({
-            tankName,
-            battles: stats.battles,
-            avgDamage: stats.battles > 0 ? stats.totalDamage / stats.battles : 0,
-        }));
-        const filteredTanks = tankRows.filter((tank) => tank.battles >= insightMinBattles);
-        const badTanks = [...filteredTanks]
-            .sort((a, b) => a.avgDamage - b.avgDamage)
-            .slice(0, 3);
-        const goodTanks = [...filteredTanks]
-            .sort((a, b) => b.avgDamage - a.avgDamage)
-            .slice(0, 3);
-        const popularTanks = [...filteredTanks]
-            .sort((a, b) => b.battles - a.battles)
-            .slice(0, 3);
+  const playerRows = useMemo<PlayerRow[]>(() => {
+    if (!results) {
+      return [];
+    }
 
-        const maxMapAvgDamage = filteredMaps.reduce((max, map) => Math.max(max, map.avgDamage), 0);
-        const maxMapBattles = filteredMaps.reduce((max, map) => Math.max(max, map.battles), 0);
-        const maxTankAvgDamage = filteredTanks.reduce((max, tank) => Math.max(max, tank.avgDamage), 0);
-        const maxTankBattles = filteredTanks.reduce((max, tank) => Math.max(max, tank.battles), 0);
+    const rows = Object.entries(results.player_stats).map(([name, stats]) => {
+      const battleCount = stats.battles.length;
+      return {
+        name,
+        battleCount,
+        avgDamage: battleCount > 0 ? stats.total_damage / battleCount : 0,
+        avgKills: battleCount > 0 ? stats.total_kills / battleCount : 0,
+        avgAssisted: battleCount > 0 ? stats.total_assisted / battleCount : 0,
+      };
+    });
 
+    const filtered = rows.filter((row) => row.battleCount >= minBattles);
+    return [...filtered].sort((left, right) => {
+      const key = playerSort.key;
+      const leftValue = left[key];
+      const rightValue = right[key];
+
+      if (typeof leftValue === 'string' && typeof rightValue === 'string') {
+        const compareResult = leftValue.localeCompare(rightValue, 'uk', { sensitivity: 'base' });
+        return playerSort.direction === 'ascending' ? compareResult : -compareResult;
+      }
+
+      const numericResult = Number(leftValue) - Number(rightValue);
+      return playerSort.direction === 'ascending' ? numericResult : -numericResult;
+    });
+  }, [results, minBattles, playerSort]);
+
+  const mapRows = useMemo(() => {
+    if (!results) {
+      return [];
+    }
+
+    return Object.entries(results.map_stats)
+      .map(([mapName, stats]) => ({
+        mapName,
+        battles: stats.battles,
+        wins: stats.wins,
+        winrate: stats.battles > 0 ? (stats.wins / stats.battles) * 100 : 0,
+      }))
+      .sort((left, right) => right.battles - left.battles);
+  }, [results]);
+
+  const mapPerformanceRows = useMemo<MapPerformanceRow[]>(() => {
+    if (!results) {
+      return [];
+    }
+
+    const mapAccumulator = new Map<string, { playerEntries: number; totalDamage: number; totalKills: number; totalAssisted: number }>();
+
+    for (const stats of Object.values(results.player_stats)) {
+      for (const battle of stats.battles) {
+        const row =
+          mapAccumulator.get(battle.map) ??
+          {
+            playerEntries: 0,
+            totalDamage: 0,
+            totalKills: 0,
+            totalAssisted: 0,
+          };
+
+        row.playerEntries += 1;
+        row.totalDamage += battle.damage;
+        row.totalKills += battle.kills;
+        row.totalAssisted += battle.assisted_damage;
+
+        mapAccumulator.set(battle.map, row);
+      }
+    }
+
+    return Object.entries(results.map_stats)
+      .map(([mapName, mapStats]) => {
+        const totals = mapAccumulator.get(mapName) ?? { playerEntries: 0, totalDamage: 0, totalKills: 0, totalAssisted: 0 };
+        const battleCount = mapStats.battles;
+        const playerCount = totals.playerEntries;
         return {
-            badMaps,
-            goodMaps,
-            popularMaps,
-            badTanks,
-            goodTanks,
-            popularTanks,
-            maxMapAvgDamage,
-            maxMapBattles,
-            maxTankAvgDamage,
-            maxTankBattles,
+          mapName,
+          battles: battleCount,
+          avgDamage: playerCount > 0 ? totals.totalDamage / playerCount : 0,
+          avgKills: playerCount > 0 ? totals.totalKills / playerCount : 0,
+          avgAssisted: playerCount > 0 ? totals.totalAssisted / playerCount : 0,
         };
-    }, [results]);
+      })
+      .sort((left, right) => right.avgDamage - left.avgDamage);
+  }, [results]);
 
-    const handleSort = (key: string) => {
-        let direction: 'ascending' | 'descending' = 'descending';
-        if (sortConfig.key === key && sortConfig.direction === 'descending') direction = 'ascending';
-        setSortConfig({ key, direction });
-    };
+  const mapPlayerRows = useMemo<MapPlayerRow[]>(() => {
+    if (!results) {
+      return [];
+    }
 
-    return (
-        <div className="relative z-10 w-full max-w-5xl mx-auto space-y-6">
-            <div className="glass-panel p-4 sm:p-5">
-                <h2 className="text-lg sm:text-xl font-semibold text-white mb-3 flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-cyan-300" />
-                    АБС — аналіз реплеїв
-                </h2>
-                <div className="flex flex-col lg:flex-row items-center gap-3">
-                    <input
-                        id={fileInputId}
-                        type="file"
-                        multiple
-                        accept=".wotreplay,.WOTREPLAY"
-                        onChange={handleFileChange}
-                        onClick={(event) => {
-                            event.currentTarget.value = '';
-                        }}
-                        className="sr-only"
-                    />
-                    <label htmlFor={fileInputId} className="btn-ghost w-full sm:w-auto text-xs sm:text-sm font-medium">
-                        <UploadCloud className="w-4 h-4 mr-2" />
-                        <span>Обрати файли</span>
-                    </label>
-                    <p className="text-slate-300 text-xs sm:text-sm flex-1">
-                        {files.length > 0 ? `Обрано файлів: ${files.length}` : 'Будь ласка, оберіть .wotreplay файли'}
-                    </p>
-                    <button onClick={handleAnalyze} disabled={files.length === 0 || isLoading} className="btn-primary w-full sm:w-auto text-xs sm:text-sm font-semibold">
-                        {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Rocket className="w-4 h-4 mr-2" />}
-                        <span>{isLoading ? 'Аналіз...' : 'Почати аналіз'}</span>
-                    </button>
-                </div>
+    const mapPlayerAccumulator = new Map<string, { mapName: string; playerName: string; battles: number; totalDamage: number; totalKills: number; totalAssisted: number }>();
+
+    for (const [playerName, stats] of Object.entries(results.player_stats)) {
+      for (const battle of stats.battles) {
+        const key = `${battle.map}::${playerName}`;
+        const row =
+          mapPlayerAccumulator.get(key) ??
+          {
+            mapName: battle.map,
+            playerName,
+            battles: 0,
+            totalDamage: 0,
+            totalKills: 0,
+            totalAssisted: 0,
+          };
+
+        row.battles += 1;
+        row.totalDamage += battle.damage;
+        row.totalKills += battle.kills;
+        row.totalAssisted += battle.assisted_damage;
+        mapPlayerAccumulator.set(key, row);
+      }
+    }
+
+    return Array.from(mapPlayerAccumulator.values()).map((row) => ({
+      mapName: row.mapName,
+      playerName: row.playerName,
+      battles: row.battles,
+      avgDamage: row.battles > 0 ? row.totalDamage / row.battles : 0,
+      avgKills: row.battles > 0 ? row.totalKills / row.battles : 0,
+      avgAssisted: row.battles > 0 ? row.totalAssisted / row.battles : 0,
+    }));
+  }, [results]);
+
+  useEffect(() => {
+    if (mapRows.length === 0) {
+      setSelectedMap('');
+      return;
+    }
+
+    if (!selectedMap || !mapRows.some((map) => map.mapName === selectedMap)) {
+      setSelectedMap(mapRows[0].mapName);
+    }
+  }, [mapRows, selectedMap]);
+
+  const selectedMapTopPlayers = useMemo(() => {
+    return mapPlayerRows
+      .filter((row) => row.mapName === selectedMap && row.battles >= mapMinBattles)
+      .sort((left, right) => right.avgDamage - left.avgDamage)
+      .slice(0, 12);
+  }, [mapMinBattles, mapPlayerRows, selectedMap]);
+
+  const qualifiedMapPerformanceRows = useMemo(
+    () => [...mapPerformanceRows].filter((row) => row.battles >= mapMinBattles).sort((left, right) => right.avgDamage - left.avgDamage),
+    [mapPerformanceRows, mapMinBattles]
+  );
+
+  const bestDamageMap = qualifiedMapPerformanceRows[0] ?? null;
+  const worstDamageMap = qualifiedMapPerformanceRows.length > 1 ? qualifiedMapPerformanceRows[qualifiedMapPerformanceRows.length - 1] : null;
+  const bestWinrateMap =
+    [...mapRows]
+      .filter((row) => row.battles >= mapMinBattles)
+      .sort((left, right) => right.winrate - left.winrate)[0] ?? null;
+
+  const handleSort = (key: PlayerSortKey) => {
+    setPlayerSort((current) => {
+      if (current.key === key) {
+        return {
+          key,
+          direction: current.direction === 'descending' ? 'ascending' : 'descending',
+        };
+      }
+
+      return {
+        key,
+        direction: 'descending',
+      };
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <section className="glass-panel p-4 sm:p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Shield className="h-4 w-4" />
+          <h1 className="text-lg font-semibold text-white sm:text-xl">АБС реплеї</h1>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <input
+            id={fileInputId}
+            type="file"
+            multiple
+            accept=".wotreplay,.WOTREPLAY"
+            onClick={(event) => {
+              event.currentTarget.value = '';
+            }}
+            onChange={handleFileChange}
+            className="sr-only"
+          />
+
+          <label htmlFor={fileInputId} className="btn-secondary w-full sm:w-auto">
+            <UploadCloud className="h-4 w-4" />
+            Обрати файли
+          </label>
+
+          <p className="text-sm text-slate-300">
+            {files.length > 0 ? `Обрано файлів: ${files.length}` : 'Завантажте .wotreplay файли для АБС аналізу'}
+          </p>
+
+          <button type="button" onClick={handleAnalyze} disabled={isLoading || files.length === 0} className="btn-primary w-full sm:ml-auto sm:w-auto">
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+            {isLoading ? 'Аналіз...' : 'Почати аналіз'}
+          </button>
+        </div>
+      </section>
+
+      {error && (
+        <section className="panel-muted border border-rose-300/35 p-4 text-sm text-rose-200">
+          <div className="flex items-start gap-2">
+            <XCircle className="mt-0.5 h-4 w-4" />
+            <p>{error}</p>
+          </div>
+        </section>
+      )}
+
+      {results && (
+        <section className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSection('summary')}
+            className={`btn-linkish ${section === 'summary' ? 'border-white/30 bg-white/10 text-white' : ''}`}
+          >
+            Огляд
+          </button>
+          <button
+            type="button"
+            onClick={() => setSection('analytics')}
+            className={`btn-linkish ${section === 'analytics' ? 'border-white/30 bg-white/10 text-white' : ''}`}
+          >
+            Аналітика
+          </button>
+        </section>
+      )}
+
+      {results && section === 'summary' && (
+        <section className="grid min-h-[34rem] grid-cols-1 gap-4 xl:grid-cols-5">
+          <article className="glass-panel p-4 xl:col-span-2">
+            <h2 className="mb-3 text-base font-semibold text-white">Карти (winrate)</h2>
+            <div className="table-shell overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                <thead className="table-head">
+                  <tr>
+                    <th className="px-2.5 py-2">Карта</th>
+                    <th className="px-2.5 py-2 text-center">Боів</th>
+                    <th className="px-2.5 py-2 text-center">WR %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mapRows.map((row) => (
+                    <tr key={row.mapName} className="table-row">
+                      <td className="px-2.5 py-2">{row.mapName}</td>
+                      <td className="px-2.5 py-2 text-center">{row.battles}</td>
+                      <td className={`px-2.5 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>{row.winrate.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="glass-panel p-4 xl:col-span-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-white">Гравці (середні метрики)</h2>
+              <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
+                Мін. боїв
+                <input
+                  type="number"
+                  min={1}
+                  className="input w-16"
+                  value={minBattles}
+                  onChange={(event) => setMinBattles(Math.max(1, Number(event.target.value) || 1))}
+                />
+              </label>
             </div>
 
-            {error && ( <div className="glass-card border border-rose-400/30 bg-rose-500/10 p-4"><div className="flex items-center"><XCircle className="w-5 h-5 text-rose-300 mr-2"/><div><p className="font-semibold text-rose-200 text-sm">Помилка</p><p className="text-rose-100/80 text-sm">{error}</p></div></div></div> )}
+            <div className="table-shell overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                <thead className="table-head">
+                  <tr>
+                    <SortableHeader label="Гравець" onClick={() => handleSort('name')} />
+                    <SortableHeader center label="Боів" onClick={() => handleSort('battleCount')} />
+                    <SortableHeader center label="Сер. урон" onClick={() => handleSort('avgDamage')} />
+                    <SortableHeader center label="Сер. кілли" onClick={() => handleSort('avgKills')} />
+                    <SortableHeader center label="Сер. асист" onClick={() => handleSort('avgAssisted')} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {playerRows.map((row) => (
+                    <tr key={row.name} className="table-row">
+                      <td className="px-2.5 py-2">{row.name}</td>
+                      <td className="px-2.5 py-2 text-center">{row.battleCount}</td>
+                      <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
+                      <td className="px-2.5 py-2 text-center">{row.avgKills.toFixed(2)}</td>
+                      <td className="px-2.5 py-2 text-center">{row.avgAssisted.toFixed(0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      )}
 
-            {results && (
-                <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setSection('stats')}
-                        className={`btn-ghost text-xs sm:text-sm font-medium ${section === 'stats' ? 'border-white/50 bg-white/10 text-white' : ''}`}
-                    >
-                        Статистика
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setSection('insights')}
-                        className={`btn-ghost text-xs sm:text-sm font-medium ${section === 'insights' ? 'border-white/50 bg-white/10 text-white' : ''}`}
-                    >
-                        Аналітика
-                    </button>
-                </div>
+      {results && section === 'analytics' && (
+        <section className="min-h-[34rem] space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <article className="kpi-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Краща карта за avg dmg</p>
+              {bestDamageMap ? (
+                <>
+                  <p className="mt-2 text-lg font-semibold text-white">{bestDamageMap.mapName}</p>
+                  <p className={`mt-1 text-sm ${getAvgDamageColor(bestDamageMap.avgDamage)}`}>{bestDamageMap.avgDamage.toFixed(0)} середній урон</p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+              )}
+            </article>
+
+            <article className="kpi-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Ризикова карта</p>
+              {worstDamageMap ? (
+                <>
+                  <p className="mt-2 text-lg font-semibold text-white">{worstDamageMap.mapName}</p>
+                  <p className="mt-1 text-sm text-rose-200">{worstDamageMap.avgDamage.toFixed(0)} середній урон</p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+              )}
+            </article>
+
+            <article className="kpi-card">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Кращий winrate</p>
+              {bestWinrateMap ? (
+                <>
+                  <p className="mt-2 text-lg font-semibold text-white">{bestWinrateMap.mapName}</p>
+                  <p className={`mt-1 text-sm ${getWinrateColor(bestWinrateMap.winrate)}`}>{bestWinrateMap.winrate.toFixed(1)}% WR</p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+              )}
+            </article>
+          </div>
+
+          <article className="glass-panel p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-white">Топ гравців на конкретній карті</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={selectedMap}
+                  onChange={(event) => setSelectedMap(event.target.value)}
+                  className="select min-w-[180px]"
+                >
+                  {mapRows.map((map) => (
+                    <option key={map.mapName} value={map.mapName}>
+                      {map.mapName}
+                    </option>
+                  ))}
+                </select>
+
+                <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
+                  Мін. боїв
+                  <input
+                    type="number"
+                    min={1}
+                    className="input w-16"
+                    value={mapMinBattles}
+                    onChange={(event) => setMapMinBattles(Math.max(1, Number(event.target.value) || 1))}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="table-shell overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                <thead className="table-head">
+                  <tr>
+                    <th className="px-2.5 py-2">#</th>
+                    <th className="px-2.5 py-2">Гравець</th>
+                    <th className="px-2.5 py-2 text-center">Боів</th>
+                    <th className="px-2.5 py-2 text-center">Сер. урон</th>
+                    <th className="px-2.5 py-2 text-center">Сер. кілли</th>
+                    <th className="px-2.5 py-2 text-center">Сер. асист</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedMapTopPlayers.map((row, index) => (
+                    <tr key={`${row.mapName}-${row.playerName}`} className="table-row">
+                      <td className="px-2.5 py-2">{index + 1}</td>
+                      <td className="px-2.5 py-2">{row.playerName}</td>
+                      <td className="px-2.5 py-2 text-center">{row.battles}</td>
+                      <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
+                      <td className="px-2.5 py-2 text-center">{row.avgKills.toFixed(2)}</td>
+                      <td className="px-2.5 py-2 text-center">{row.avgAssisted.toFixed(0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {selectedMapTopPlayers.length === 0 && (
+              <p className="mt-3 text-sm text-slate-300">
+                Немає достатніх даних по карті. Спробуйте зменшити мінімальний поріг боїв.
+              </p>
             )}
+          </article>
 
-            {results && section === 'stats' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div className="lg:col-span-1 glass-panel p-4">
-                        <h2 className="text-base font-semibold text-white mb-3">Статистика по картах</h2>
-                        <div className="table-shell overflow-x-auto overflow-y-visible">
-                            <table className="w-full text-left text-xs sm:text-sm text-slate-200">
-                                <thead className="table-head">
-                                <tr>
-                                    <th className="px-2.5 py-1.5 font-semibold">Карта</th>
-                                    <th className="px-2.5 py-1.5 font-semibold text-center">Боїв</th>
-                                    <th className="px-2.5 py-1.5 font-semibold text-center">WR %</th>
-                                </tr>
-                                </thead>
-                                <tbody className="text-slate-200/90">
-                                {mapStatistics.map((map) => (
-                                    <tr key={map.mapName} className="table-row">
-                                        <td className="px-2.5 py-1.5 font-medium">{map.mapName}</td>
-                                        <td className="px-2.5 py-1.5 text-center">{map.battles}</td>
-                                        <td className={`px-2.5 py-1.5 text-center font-bold ${getWinrateColor(map.winrate)}`}>
-                                            {map.winrate.toFixed(1)}%
-                                        </td>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+          <article className="glass-panel p-4">
+            <h3 className="mb-3 text-base font-semibold text-white">Топ карт по середньому урону команди</h3>
+            <div className="table-shell overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                <thead className="table-head">
+                  <tr>
+                    <th className="px-2.5 py-2">Карта</th>
+                    <th className="px-2.5 py-2 text-center">Боів</th>
+                    <th className="px-2.5 py-2 text-center">Сер. урон</th>
+                    <th className="px-2.5 py-2 text-center">Сер. кілли</th>
+                    <th className="px-2.5 py-2 text-center">Сер. асист</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mapPerformanceRows.slice(0, 10).map((row) => (
+                    <tr key={row.mapName} className="table-row">
+                      <td className="px-2.5 py-2">{row.mapName}</td>
+                      <td className="px-2.5 py-2 text-center">{row.battles}</td>
+                      <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
+                      <td className="px-2.5 py-2 text-center">{row.avgKills.toFixed(2)}</td>
+                      <td className="px-2.5 py-2 text-center">{row.avgAssisted.toFixed(0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      )}
 
-                    <div className="lg:col-span-2 glass-panel p-4">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-3">
-                            <h2 className="text-base font-semibold text-white">Статистика по гравцях</h2>
-                            <div className='flex items-center gap-3 w-full sm:w-auto'>
-                                <div className="flex items-center gap-2"><label htmlFor="min-battles" className="text-xs sm:text-sm text-slate-300">Мін. боїв:</label><input id="min-battles" type="number" value={minBattles} onChange={(e) => setMinBattles(Number(e.target.value) || 1)} className="w-14 rounded-md border border-white/20 bg-white/5 p-0.5 text-center text-xs sm:text-sm text-slate-100" min="1"/></div>
-                                <button onClick={() => setView(view === 'summary' ? 'details' : 'summary')} className="btn-ghost w-full sm:w-auto text-xs sm:text-sm font-medium"><FileText className="w-4 h-4 mr-2" /><span>{view === 'summary' ? 'Детальний звіт' : 'Загальна статистика'}</span></button>
-                            </div>
-                        </div>
+      {results && section === 'summary' && playerRows.length > 0 && (
+        <section className="panel-muted p-3 text-xs text-slate-300">
+          Найпопулярніша техніка серед топ-гравців: {trimTankName(results.player_stats[playerRows[0].name]?.battles[0]?.tank ?? 'N/A')}
+        </section>
+      )}
+    </div>
+  );
+}
 
-                        {view === 'summary' ? (
-                            <div className="table-shell overflow-x-auto overflow-y-visible">
-                                <table className="w-full text-left text-xs sm:text-sm text-slate-200">
-                                    <thead className="table-head">
-                                    <tr>
-                                        <th className="px-2.5 py-1.5 font-semibold cursor-pointer hover:bg-white/10" onClick={() => handleSort('name')}><div className="flex items-center">Нікнейм гравця <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('battleCount')}><div className="flex items-center justify-center">Боїв <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgDamage')}><div className="flex items-center justify-center">Сер. урон <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgKills')}><div className="flex items-center justify-center">Сер. кілли <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                        <th className="px-2.5 py-1.5 font-semibold text-center cursor-pointer hover:bg-white/10" onClick={() => handleSort('avgAssisted')}><div className="flex items-center justify-center">Сер. асист <ArrowUpDown className="w-3 h-3 ml-1" /></div></th>
-                                    </tr>
-                                    </thead>
-                                    <tbody className="text-slate-200/90">
-                                    {processedPlayerData.map((p) => ( <tr key={p.name} className="table-row"><td className="px-2.5 py-1.5 font-medium">{p.name}</td><td className="px-2.5 py-1.5 text-center">{p.battleCount}</td><td className={`px-2.5 py-1.5 text-center font-bold ${getAvgDamageColor(p.avgDamage)}`}>{p.avgDamage.toFixed(0)}</td><td className="px-2.5 py-1.5 text-center">{p.avgKills.toFixed(2)}</td><td className="px-2.5 py-1.5 text-center">{p.avgAssisted.toFixed(0)}</td></tr> ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <div className="mt-4 space-y-3">
-                                {processedPlayerData.map((p) => (
-                                    <div key={p.name}>
-                                        <h3 className="text-sm font-semibold text-white mb-2">{p.name}</h3>
-                                        <div className="table-shell overflow-x-auto overflow-y-visible">
-                                            <table className="w-full text-left text-xs">
-                                                <thead className="table-head"><tr><th className="px-2.5 py-1.5 font-semibold">Мапа</th><th className="px-2.5 py-1.5 font-semibold">Техніка</th><th className="px-2.5 py-1.5 font-semibold text-center">Урон</th><th className="px-2.5 py-1.5 font-semibold text-center">Кілли</th><th className="px-2.5 py-1.5 font-semibold text-center">Асист</th></tr></thead>
-                                                <tbody className="text-slate-200/90">
-                                                {p.stats.battles.map((b, index) => ( <tr key={index} className="table-row last:border-b-0"><td className="px-2.5 py-1.5">{b.map}</td><td className="px-2.5 py-1.5">{trimTankName(b.tank)}</td><td className="px-2.5 py-1.5 text-center font-medium">{b.damage}</td><td className="px-2.5 py-1.5 text-center">{b.kills}</td><td className="px-2.5 py-1.5 text-center">{b.assisted_damage}</td></tr> ))}
-                                                </tbody>
-                                                <tfoot><tr className="border-t border-white/15 bg-white/5 font-semibold"><td colSpan={2} className="px-2.5 py-1.5 text-right text-slate-300">СЕРЕДНІ ЗНАЧЕННЯ:</td><td className={`px-2.5 py-1.5 text-center ${getAvgDamageColor(p.avgDamage)}`}>{p.avgDamage.toFixed(0)}</td><td className="px-2.5 py-1.5 text-center">{p.avgKills.toFixed(2)}</td><td className="px-2.5 py-1.5 text-center">{p.avgAssisted.toFixed(0)}</td></tr></tfoot>
-                                            </table>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {results && section === 'insights' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                    <div className="glass-panel p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Ban className="h-4 w-4 text-rose-300" />
-                            <h3 className="text-base font-semibold text-white">Бан топ-3 карт</h3>
-                        </div>
-                        <p className="text-xs text-slate-300 mb-3">
-                            Мінімум {insightMinBattles} боїв. Нижчий середній урон = гірша карта.
-                        </p>
-                        {insightData.badMaps.length === 0 ? (
-                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу карт.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {insightData.badMaps.map((map) => (
-                                    <div key={map.mapName} className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs text-slate-200">
-                                            <span className="font-medium">{map.mapName}</span>
-                                            <span className="text-slate-300">{map.avgDamage.toFixed(0)} dmg</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-white/10">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-rose-400 via-orange-300 to-amber-300"
-                                                style={{
-                                                    width: `${Math.max(
-                                                        8,
-                                                        Math.min(
-                                                            100,
-                                                            insightData.maxMapAvgDamage > 0
-                                                                ? (map.avgDamage / insightData.maxMapAvgDamage) * 100
-                                                                : 0
-                                                        )
-                                                    )}%`,
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="glass-panel p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <BarChart3 className="h-4 w-4 text-emerald-300" />
-                            <h3 className="text-base font-semibold text-white">Топ-3 карт по урону</h3>
-                        </div>
-                        <p className="text-xs text-slate-300 mb-3">
-                            Мінімум {insightMinBattles} боїв. Вищий середній урон = краща карта.
-                        </p>
-                        {insightData.goodMaps.length === 0 ? (
-                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу карт.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {insightData.goodMaps.map((map) => (
-                                    <div key={map.mapName} className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs text-slate-200">
-                                            <span className="font-medium">{map.mapName}</span>
-                                            <span className="text-slate-300">{map.avgDamage.toFixed(0)} dmg</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-white/10">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-300"
-                                                style={{
-                                                    width: `${Math.max(
-                                                        8,
-                                                        Math.min(
-                                                            100,
-                                                            insightData.maxMapAvgDamage > 0
-                                                                ? (map.avgDamage / insightData.maxMapAvgDamage) * 100
-                                                                : 0
-                                                        )
-                                                    )}%`,
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="glass-panel p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <MapIcon className="h-4 w-4 text-cyan-300" />
-                            <h3 className="text-base font-semibold text-white">Найпопулярніші карти</h3>
-                        </div>
-                        <p className="text-xs text-slate-300 mb-3">
-                            Мінімум {insightMinBattles} боїв. Більше боїв = популярніша карта.
-                        </p>
-                        {insightData.popularMaps.length === 0 ? (
-                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу карт.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {insightData.popularMaps.map((map) => (
-                                    <div key={map.mapName} className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs text-slate-200">
-                                            <span className="font-medium">{map.mapName}</span>
-                                            <span className="text-slate-300">{map.battles} боїв</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-white/10">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-indigo-300"
-                                                style={{
-                                                    width: `${Math.max(
-                                                        8,
-                                                        Math.min(
-                                                            100,
-                                                            insightData.maxMapBattles > 0
-                                                                ? (map.battles / insightData.maxMapBattles) * 100
-                                                                : 0
-                                                        )
-                                                    )}%`,
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="glass-panel p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Ban className="h-4 w-4 text-amber-300" />
-                            <h3 className="text-base font-semibold text-white">Бан топ-3 техніки</h3>
-                        </div>
-                        <p className="text-xs text-slate-300 mb-3">
-                            Мінімум {insightMinBattles} боїв. Оцінка за середнім уроном.
-                        </p>
-                        {insightData.badTanks.length === 0 ? (
-                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу техніки.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {insightData.badTanks.map((tank) => (
-                                    <div key={tank.tankName} className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs text-slate-200">
-                                            <span className="font-medium">{tank.tankName}</span>
-                                            <span className="text-slate-300">{tank.avgDamage.toFixed(0)} dmg</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-white/10">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-amber-300 via-emerald-300 to-cyan-300"
-                                                style={{
-                                                    width: `${Math.max(
-                                                        8,
-                                                        Math.min(
-                                                            100,
-                                                            insightData.maxTankAvgDamage > 0
-                                                                ? (tank.avgDamage / insightData.maxTankAvgDamage) * 100
-                                                                : 0
-                                                        )
-                                                    )}%`,
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="glass-panel p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Shield className="h-4 w-4 text-emerald-300" />
-                            <h3 className="text-base font-semibold text-white">Топ-3 техніки по урону</h3>
-                        </div>
-                        <p className="text-xs text-slate-300 mb-3">
-                            Мінімум {insightMinBattles} боїв. Вищий середній урон = краща техніка.
-                        </p>
-                        {insightData.goodTanks.length === 0 ? (
-                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу техніки.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {insightData.goodTanks.map((tank) => (
-                                    <div key={tank.tankName} className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs text-slate-200">
-                                            <span className="font-medium">{tank.tankName}</span>
-                                            <span className="text-slate-300">{tank.avgDamage.toFixed(0)} dmg</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-white/10">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-300"
-                                                style={{
-                                                    width: `${Math.max(
-                                                        8,
-                                                        Math.min(
-                                                            100,
-                                                            insightData.maxTankAvgDamage > 0
-                                                                ? (tank.avgDamage / insightData.maxTankAvgDamage) * 100
-                                                                : 0
-                                                        )
-                                                    )}%`,
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="glass-panel p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <BarChart3 className="h-4 w-4 text-sky-300" />
-                            <h3 className="text-base font-semibold text-white">Найпопулярніші техніки</h3>
-                        </div>
-                        <p className="text-xs text-slate-300 mb-3">
-                            Мінімум {insightMinBattles} боїв. Більше боїв = популярніша техніка.
-                        </p>
-                        {insightData.popularTanks.length === 0 ? (
-                            <p className="text-xs text-slate-400">Недостатньо даних для аналізу техніки.</p>
-                        ) : (
-                            <div className="space-y-3">
-                                {insightData.popularTanks.map((tank) => (
-                                    <div key={tank.tankName} className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs text-slate-200">
-                                            <span className="font-medium">{tank.tankName}</span>
-                                            <span className="text-slate-300">{tank.battles} боїв</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-white/10">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-sky-300 via-cyan-300 to-indigo-300"
-                                                style={{
-                                                    width: `${Math.max(
-                                                        8,
-                                                        Math.min(
-                                                            100,
-                                                            insightData.maxTankBattles > 0
-                                                                ? (tank.battles / insightData.maxTankBattles) * 100
-                                                                : 0
-                                                        )
-                                                    )}%`,
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+function SortableHeader({
+  label,
+  onClick,
+  center = false,
+}: {
+  label: string;
+  onClick: () => void;
+  center?: boolean;
+}) {
+  return (
+    <th className={`cursor-pointer px-2.5 py-2 hover:bg-white/10 ${center ? 'text-center' : ''}`} onClick={onClick}>
+      <span className={`inline-flex items-center gap-1 ${center ? 'justify-center' : ''}`}>
+        {label}
+        <ArrowUpDown className="h-3 w-3" />
+      </span>
+    </th>
+  );
 }

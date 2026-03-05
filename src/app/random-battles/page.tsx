@@ -1,6 +1,9 @@
-// file: src/app/random-battles/page.tsx
-import { redirect } from 'next/navigation';
+﻿import RandomBattleAnalyzer from '../components/RandomBattleAnalyzer';
 
 export default function RandomBattlesPage() {
-    redirect('/');
+  return (
+    <div className="space-y-4">
+      <RandomBattleAnalyzer />
+    </div>
+  );
 }
