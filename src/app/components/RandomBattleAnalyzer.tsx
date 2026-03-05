@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpDown, Loader2, Rocket, Swords, UploadCloud, XCircle } from 'lucide-react';
+import CustomScroll from './CustomScroll';
+import CustomSelect from './CustomSelect';
 
 type MapStats = {
   battles: number;
@@ -74,20 +76,20 @@ function trimTankName(fullName: string): string {
 }
 
 function getWinrateColor(winrate: number): string {
-  if (winrate <= 46) return 'text-rose-300';
-  if (winrate <= 52) return 'text-amber-300';
-  if (winrate <= 57) return 'text-emerald-300';
-  if (winrate <= 63) return 'text-cyan-300';
-  return 'text-fuchsia-300';
+  if (winrate <= 46) return 'text-zinc-500';
+  if (winrate <= 52) return 'text-zinc-400';
+  if (winrate <= 57) return 'text-zinc-300';
+  if (winrate <= 63) return 'text-zinc-200';
+  return 'text-zinc-100';
 }
 
 function getAvgDamageColor(damage: number): string {
-  if (damage <= 1500) return 'text-rose-300';
-  if (damage <= 2000) return 'text-orange-300';
-  if (damage <= 2500) return 'text-amber-300';
-  if (damage <= 3200) return 'text-emerald-300';
-  if (damage <= 3900) return 'text-cyan-300';
-  return 'text-fuchsia-300';
+  if (damage <= 1500) return 'text-zinc-500';
+  if (damage <= 2000) return 'text-zinc-400';
+  if (damage <= 2500) return 'text-zinc-300';
+  if (damage <= 3200) return 'text-zinc-200';
+  if (damage <= 3900) return 'text-zinc-100';
+  return 'text-white';
 }
 
 function batchFilesBySize(files: File[], maxBatchBytes = 16 * 1024 * 1024, maxFilesPerBatch = 25): File[][] {
@@ -421,6 +423,10 @@ export default function RandomBattleAnalyzer() {
     });
   };
 
+  const SCROLL_THRESHOLD = 12;
+  const tankScrollEnabled = tankRows.length >= SCROLL_THRESHOLD;
+  const mapScrollEnabled = sortedMapRows.length >= SCROLL_THRESHOLD;
+
   return (
     <div className="space-y-6">
       <section className="glass-panel p-4 sm:p-5">
@@ -459,7 +465,7 @@ export default function RandomBattleAnalyzer() {
       </section>
 
       {error && (
-        <section className="panel-muted border border-rose-300/35 p-4 text-sm text-rose-200">
+        <section className="panel-muted border border-white/20 p-4 text-sm text-slate-200">
           <div className="flex items-start gap-2">
             <XCircle className="mt-0.5 h-4 w-4" />
             <p>{error}</p>
@@ -487,58 +493,62 @@ export default function RandomBattleAnalyzer() {
       )}
 
       {results && section === 'summary' && (
-        <section className="grid min-h-[34rem] grid-cols-1 gap-4 xl:grid-cols-5">
-          <article className="glass-panel p-4 xl:col-span-3">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+          <article className={`glass-panel flex min-h-0 flex-col p-4 xl:col-span-3 ${tankScrollEnabled ? 'max-h-[34rem]' : ''}`}>
             <h2 className="mb-3 text-base font-semibold text-white">Результати по техніці</h2>
-            <div className="table-shell overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
-                <thead className="table-head">
-                  <tr>
-                    <SortableHeader label="Техніка" onClick={() => handleSort('tankName')} />
-                    <SortableHeader center label="Боів" onClick={() => handleSort('battles')} />
-                    <SortableHeader center label="WR %" onClick={() => handleSort('winrate')} />
-                    <SortableHeader center label="Живучість %" onClick={() => handleSort('survivability')} />
-                    <SortableHeader center label="Сер. урон" onClick={() => handleSort('avgDamage')} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {tankRows.map((row) => (
-                    <tr key={row.tankName} className="table-row">
-                      <td className="px-2.5 py-2">{trimTankName(row.tankName)}</td>
-                      <td className="px-2.5 py-2 text-center">{row.battles}</td>
-                      <td className={`px-2.5 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>{row.winrate.toFixed(1)}%</td>
-                      <td className="px-2.5 py-2 text-center">{row.survivability.toFixed(1)}%</td>
-                      <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
+            <div className={`table-shell min-h-0 overflow-hidden ${tankScrollEnabled ? 'flex-1' : ''}`}>
+              <CustomScroll enabled={tankScrollEnabled} className={tankScrollEnabled ? 'h-full overflow-x-auto' : 'overflow-x-auto'}>
+                <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                  <thead className="table-head">
+                    <tr>
+                      <SortableHeader label="Техніка" onClick={() => handleSort('tankName')} />
+                      <SortableHeader center label="Боів" onClick={() => handleSort('battles')} />
+                      <SortableHeader center label="WR %" onClick={() => handleSort('winrate')} />
+                      <SortableHeader center label="Живучість %" onClick={() => handleSort('survivability')} />
+                      <SortableHeader center label="Сер. урон" onClick={() => handleSort('avgDamage')} />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {tankRows.map((row) => (
+                      <tr key={row.tankName} className="table-row">
+                        <td className="px-2.5 py-2">{trimTankName(row.tankName)}</td>
+                        <td className="px-2.5 py-2 text-center">{row.battles}</td>
+                        <td className={`px-2.5 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>{row.winrate.toFixed(1)}%</td>
+                        <td className="px-2.5 py-2 text-center">{row.survivability.toFixed(1)}%</td>
+                        <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CustomScroll>
             </div>
           </article>
 
-          <article className="glass-panel p-4 xl:col-span-2">
+          <article className={`glass-panel flex h-full min-h-0 flex-col p-4 xl:col-span-2 ${mapScrollEnabled ? 'max-h-[34rem]' : ''}`}>
             <h2 className="mb-3 text-base font-semibold text-white">Карти</h2>
-            <div className="table-shell overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
-                <thead className="table-head">
-                  <tr>
-                    <SortableHeader label="Карта" onClick={() => handleMapSort('mapName')} />
-                    <SortableHeader center label="Боів" onClick={() => handleMapSort('battles')} />
-                    <SortableHeader center label="Сер. урон" onClick={() => handleMapSort('avgDamage')} />
-                    <SortableHeader center label="WR %" onClick={() => handleMapSort('winrate')} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedMapRows.map((row) => (
-                    <tr key={row.mapName} className="table-row">
-                      <td className="px-2.5 py-2">{row.mapName}</td>
-                      <td className="px-2.5 py-2 text-center">{row.battles}</td>
-                      <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
-                      <td className={`px-2.5 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>{row.winrate.toFixed(1)}%</td>
+            <div className={`table-shell min-h-0 overflow-hidden ${mapScrollEnabled ? 'flex-1' : ''}`}>
+              <CustomScroll enabled={mapScrollEnabled} className={mapScrollEnabled ? 'h-full overflow-x-auto' : 'overflow-x-auto'}>
+                <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                  <thead className="table-head">
+                    <tr>
+                      <SortableHeader label="Карта" onClick={() => handleMapSort('mapName')} />
+                      <SortableHeader center label="Боів" onClick={() => handleMapSort('battles')} />
+                      <SortableHeader center label="Сер. урон" onClick={() => handleMapSort('avgDamage')} />
+                      <SortableHeader center label="WR %" onClick={() => handleMapSort('winrate')} />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {sortedMapRows.map((row) => (
+                      <tr key={row.mapName} className="table-row">
+                        <td className="px-2.5 py-2">{row.mapName}</td>
+                        <td className="px-2.5 py-2 text-center">{row.battles}</td>
+                        <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
+                        <td className={`px-2.5 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>{row.winrate.toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CustomScroll>
             </div>
           </article>
         </section>
@@ -589,7 +599,7 @@ export default function RandomBattleAnalyzer() {
               {bestSurvivalMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{bestSurvivalMap.mapName}</p>
-                  <p className="mt-1 text-sm text-amber-200">{bestSurvivalMap.survivability.toFixed(1)}% виживання</p>
+                  <p className="mt-1 text-sm text-zinc-200">{bestSurvivalMap.survivability.toFixed(1)}% виживання</p>
                 </>
               ) : (
                 <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
@@ -600,13 +610,13 @@ export default function RandomBattleAnalyzer() {
           <article className="glass-panel p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-white">Найкращі танки на певній карті</h2>
-              <select value={selectedMap} onChange={(event) => setSelectedMap(event.target.value)} className="select min-w-[180px]">
+              <CustomSelect value={selectedMap} onChange={(event) => setSelectedMap(event.target.value)} className="min-w-[180px]">
                 {mapRows.map((map) => (
                   <option key={map.mapName} value={map.mapName}>
                     {map.mapName}
                   </option>
                 ))}
-              </select>
+              </CustomSelect>
             </div>
 
             <div className="table-shell overflow-x-auto">

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpDown, Loader2, Rocket, Shield, UploadCloud, XCircle } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 
 type Battle = {
   map: string;
@@ -65,20 +66,20 @@ function trimTankName(fullName: string): string {
 }
 
 function getWinrateColor(winrate: number): string {
-  if (winrate <= 46) return 'text-rose-300';
-  if (winrate <= 52) return 'text-amber-300';
-  if (winrate <= 57) return 'text-emerald-300';
-  if (winrate <= 63) return 'text-cyan-300';
-  return 'text-fuchsia-300';
+  if (winrate <= 46) return 'text-zinc-500';
+  if (winrate <= 52) return 'text-zinc-400';
+  if (winrate <= 57) return 'text-zinc-300';
+  if (winrate <= 63) return 'text-zinc-200';
+  return 'text-zinc-100';
 }
 
 function getAvgDamageColor(damage: number): string {
-  if (damage <= 1400) return 'text-rose-300';
-  if (damage <= 1700) return 'text-orange-300';
-  if (damage <= 2100) return 'text-amber-300';
-  if (damage <= 2600) return 'text-emerald-300';
-  if (damage <= 3200) return 'text-cyan-300';
-  return 'text-fuchsia-300';
+  if (damage <= 1400) return 'text-zinc-500';
+  if (damage <= 1700) return 'text-zinc-400';
+  if (damage <= 2100) return 'text-zinc-300';
+  if (damage <= 2600) return 'text-zinc-200';
+  if (damage <= 3200) return 'text-zinc-100';
+  return 'text-white';
 }
 
 function batchFilesBySize(files: File[], maxBatchBytes = 16 * 1024 * 1024, maxFilesPerBatch = 25): File[][] {
@@ -426,7 +427,7 @@ export default function ReplayUploader() {
       </section>
 
       {error && (
-        <section className="panel-muted border border-rose-300/35 p-4 text-sm text-rose-200">
+        <section className="panel-muted border border-white/20 p-4 text-sm text-slate-200">
           <div className="flex items-start gap-2">
             <XCircle className="mt-0.5 h-4 w-4" />
             <p>{error}</p>
@@ -542,7 +543,7 @@ export default function ReplayUploader() {
               {worstDamageMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{worstDamageMap.mapName}</p>
-                  <p className="mt-1 text-sm text-rose-200">{worstDamageMap.avgDamage.toFixed(0)} середній урон</p>
+                  <p className="mt-1 text-sm text-zinc-300">{worstDamageMap.avgDamage.toFixed(0)} середній урон</p>
                 </>
               ) : (
                 <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
@@ -566,17 +567,17 @@ export default function ReplayUploader() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-white">Топ гравців на конкретній карті</h2>
               <div className="flex flex-wrap items-center gap-2">
-                <select
+                <CustomSelect
                   value={selectedMap}
                   onChange={(event) => setSelectedMap(event.target.value)}
-                  className="select min-w-[180px]"
+                  className="min-w-[180px]"
                 >
                   {mapRows.map((map) => (
                     <option key={map.mapName} value={map.mapName}>
                       {map.mapName}
                     </option>
                   ))}
-                </select>
+                </CustomSelect>
 
                 <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
                   Мін. боїв

@@ -31,19 +31,19 @@ type Props = {
 
 // --- Хелпери кольорів/метрик ---
 const getWinrateColor = (winrate: number): string => {
-    if (winrate <= 46) return 'text-rose-300';
-    if (winrate <= 52) return 'text-amber-300';
-    if (winrate <= 57) return 'text-emerald-300';
-    if (winrate <= 63) return 'text-cyan-300';
-    return 'text-fuchsia-300';
+    if (winrate <= 46) return 'text-zinc-500';
+    if (winrate <= 52) return 'text-zinc-400';
+    if (winrate <= 57) return 'text-zinc-300';
+    if (winrate <= 63) return 'text-zinc-200';
+    return 'text-zinc-100';
 };
 const getAvgDamageColor = (damage: number): string => {
-    if (damage <= 1500) return 'text-rose-300';
-    if (damage <= 2001) return 'text-orange-300';
-    if (damage <= 2501) return 'text-amber-300';
-    if (damage <= 3201) return 'text-emerald-300';
-    if (damage <= 3900) return 'text-cyan-300';
-    return 'text-fuchsia-300';
+    if (damage <= 1500) return 'text-zinc-500';
+    if (damage <= 2001) return 'text-zinc-400';
+    if (damage <= 2501) return 'text-zinc-300';
+    if (damage <= 3201) return 'text-zinc-200';
+    if (damage <= 3900) return 'text-zinc-100';
+    return 'text-white';
 };
 
 type SortKey = 'mapName' | 'battles' | 'winrate' | 'survivability' | 'avgDamage' | 'avgKills' | 'avgAssisted';

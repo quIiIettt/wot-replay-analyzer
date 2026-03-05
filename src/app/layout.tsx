@@ -2,6 +2,7 @@
 import { Manrope, Outfit } from 'next/font/google';
 import './globals.css';
 import AppHeader from './components/AppHeader';
+import AppFooter from './components/AppFooter';
 
 const manrope = Manrope({
   subsets: ['latin', 'cyrillic'],
@@ -30,7 +31,8 @@ export default function RootLayout({
         <div className="app-shell">
           <div className="ambient-bg" />
           <AppHeader />
-          <main className="container relative z-10 mx-auto w-full px-4 pb-10 pt-6 md:px-8">{children}</main>
+          <main className="container relative z-10 mx-auto w-full flex-1 px-4 pb-8 pt-6 md:px-8">{children}</main>
+          <AppFooter />
         </div>
       </body>
     </html>
