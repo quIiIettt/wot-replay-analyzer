@@ -33,8 +33,6 @@ type TankAgg = {
     total_assisted: number;
     maps: Record<string, MapAgg>;
 };
-
-// ---- мінімальні структури JSON, що нам потрібні ----
 type VehicleMeta = {
     name?: string;
     team?: number | string;
@@ -139,8 +137,6 @@ export function parseSingleReplay(replayPath: string): SingleReplay | null {
     }
 
     if (!battle_metadata || !battle_results) return null;
-
-    // танк головного гравця з metadata
     const main_player_name: string | undefined = battle_metadata.playerName;
     let main_player_tank: string | null = null;
 
@@ -153,8 +149,6 @@ export function parseSingleReplay(replayPath: string): SingleReplay | null {
         }
     }
     if (!main_player_tank) return null;
-
-    // витягаємо персональні стати
     let player_stats: PersonalStats | null = null;
     const personal = (battle_results.personal ?? {}) as Record<string, PersonalStats>;
     for (const val of Object.values(personal)) {
@@ -178,7 +172,7 @@ export function parseSingleReplay(replayPath: string): SingleReplay | null {
     const survived = Number(player_stats.deathReason ?? 0) === -1;
 
     return {
-        map_name: battle_metadata.mapDisplayName ?? "Невідома карта",
+        map_name: battle_metadata.mapDisplayName ?? "Unknown map",
         tank: main_player_tank,
         damage: Number(player_stats.damageDealt ?? 0),
         kills: Number(player_stats.kills ?? 0),
@@ -189,10 +183,9 @@ export function parseSingleReplay(replayPath: string): SingleReplay | null {
 }
 
 export function processReplaysInFolder(folderPath: string): Record<string, TankAgg> {
-    // збираємо всі .wotreplay
     let files: string[] = [];
     try {
-        files = fs.readdirSync(folderPath).filter((f) => f.endsWith(".wotreplay"));
+        files = fs.readdirSync(folderPath).filter((f) => f.toLowerCase().endsWith(".wotreplay"));
     } catch {
         return {};
     }

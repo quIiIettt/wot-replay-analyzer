@@ -2,8 +2,8 @@
 import { Code2, Database, Layers, Wrench } from 'lucide-react';
 
 const stack = [
-  { label: 'Frontend', value: 'Next.js 15 + React 19', icon: Layers },
-  { label: 'Парсинг реплеїв', value: 'Node.js API routes + TypeScript', icon: Database },
+  { label: 'Frontend', value: 'Next.js 16 + React 19', icon: Layers },
+  { label: 'Replay Parsing', value: 'Node.js API routes + TypeScript', icon: Database },
   { label: 'UI/UX', value: 'Tailwind CSS v4 + Lucide Icons', icon: Wrench },
 ] as const;
 
@@ -16,9 +16,9 @@ export default function DeveloperPage() {
             <Code2 className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-semibold text-white">Розробник</h1>
+            <h1 className="text-2xl font-semibold text-white">Developer</h1>
             <p className="mt-2 text-sm text-slate-300">
-              Технічна сторінка проєкту. Тут можна швидко подивитися стек і перейти в головний дашборд.
+              Technical project page with a quick stack overview and direct navigation to the main dashboard.
             </p>
           </div>
         </div>
@@ -35,7 +35,7 @@ export default function DeveloperPage() {
       </section>
 
       <Link href="/" className="btn-linkish w-full sm:w-auto">
-        Повернутися на головну
+        Back to Home
       </Link>
     </div>
   );

@@ -187,28 +187,37 @@ export default function ReplayUploader() {
         });
 
         const rawText = await response.text();
-        let parsed: AnalysisResults;
+        let parsed: AnalysisResults | { error?: string };
 
         try {
-          parsed = JSON.parse(rawText) as AnalysisResults;
+          parsed = JSON.parse(rawText) as AnalysisResults | { error?: string };
         } catch {
-          throw new Error(`Сервер повернув некоректну відповідь (status ${response.status}).`);
+          throw new Error(`Server returned an invalid response (status ${response.status}).`);
         }
 
-        if (parsed.player_stats && Object.keys(parsed.player_stats).length > 0) {
-          chunks.push(parsed);
+        if (!response.ok) {
+          const message =
+            typeof parsed === 'object' && parsed !== null && 'error' in parsed && typeof parsed.error === 'string'
+              ? parsed.error
+              : `Analysis request failed with status ${response.status}.`;
+          throw new Error(message);
+        }
+
+        const payload = parsed as AnalysisResults;
+        if (payload.player_stats && Object.keys(payload.player_stats).length > 0) {
+          chunks.push(payload);
         }
       }
 
       const merged = mergeAnalysisResults(chunks);
       if (!merged.player_stats || Object.keys(merged.player_stats).length === 0) {
-        throw new Error('Не вдалося обробити реплеї. Перевірте вміст файлів.');
+        throw new Error('Unable to process replays. Please verify the file contents.');
       }
 
       setResults(merged);
       setSection('summary');
     } catch (analysisError) {
-      setError(analysisError instanceof Error ? analysisError.message : 'Невідома помилка аналізу.');
+      setError(analysisError instanceof Error ? analysisError.message : 'Unknown analysis error.');
     } finally {
       setIsLoading(false);
     }
@@ -237,7 +246,7 @@ export default function ReplayUploader() {
       const rightValue = right[key];
 
       if (typeof leftValue === 'string' && typeof rightValue === 'string') {
-        const compareResult = leftValue.localeCompare(rightValue, 'uk', { sensitivity: 'base' });
+        const compareResult = leftValue.localeCompare(rightValue, 'en', { sensitivity: 'base' });
         return playerSort.direction === 'ascending' ? compareResult : -compareResult;
       }
 
@@ -372,6 +381,44 @@ export default function ReplayUploader() {
     [...mapRows]
       .filter((row) => row.battles >= mapMinBattles)
       .sort((left, right) => right.winrate - left.winrate)[0] ?? null;
+  const mostCommonTopTank = useMemo(() => {
+    if (!results) {
+      return 'N/A';
+    }
+
+    const topPlayers = Object.entries(results.player_stats)
+      .map(([name, stats]) => {
+        const battleCount = stats.battles.length;
+        return {
+          stats,
+          battleCount,
+          avgDamage: battleCount > 0 ? stats.total_damage / battleCount : 0,
+          name,
+        };
+      })
+      .filter((row) => row.battleCount >= minBattles)
+      .sort((left, right) => right.avgDamage - left.avgDamage)
+      .slice(0, 10);
+
+    const tankCounts = new Map<string, number>();
+    for (const player of topPlayers) {
+      for (const battle of player.stats.battles) {
+        const tankName = trimTankName(battle.tank || 'N/A');
+        tankCounts.set(tankName, (tankCounts.get(tankName) ?? 0) + 1);
+      }
+    }
+
+    let mostCommonTank = 'N/A';
+    let highestCount = 0;
+    for (const [tankName, count] of tankCounts.entries()) {
+      if (count > highestCount) {
+        highestCount = count;
+        mostCommonTank = tankName;
+      }
+    }
+
+    return mostCommonTank;
+  }, [results, minBattles]);
 
   const handleSort = (key: PlayerSortKey) => {
     setPlayerSort((current) => {
@@ -394,7 +441,7 @@ export default function ReplayUploader() {
       <section className="glass-panel p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2">
           <Shield className="h-4 w-4" />
-          <h1 className="text-lg font-semibold text-white sm:text-xl">АБС реплеї</h1>
+          <h1 className="text-lg font-semibold text-white sm:text-xl">ABS Replays</h1>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -412,16 +459,16 @@ export default function ReplayUploader() {
 
           <label htmlFor={fileInputId} className="btn-secondary w-full sm:w-auto">
             <UploadCloud className="h-4 w-4" />
-            Обрати файли
+            Select Files
           </label>
 
           <p className="text-sm text-slate-300">
-            {files.length > 0 ? `Обрано файлів: ${files.length}` : 'Завантажте .wotreplay файли для АБС аналізу'}
+            {files.length > 0 ? `Files selected: ${files.length}` : 'Upload .wotreplay files for ABS analysis'}
           </p>
 
           <button type="button" onClick={handleAnalyze} disabled={isLoading || files.length === 0} className="btn-primary w-full sm:ml-auto sm:w-auto">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            {isLoading ? 'Аналіз...' : 'Почати аналіз'}
+            {isLoading ? 'Analyzing...' : 'Run Analysis'}
           </button>
         </div>
       </section>
@@ -442,14 +489,14 @@ export default function ReplayUploader() {
             onClick={() => setSection('summary')}
             className={`btn-linkish ${section === 'summary' ? 'border-white/30 bg-white/10 text-white' : ''}`}
           >
-            Огляд
+            Overview
           </button>
           <button
             type="button"
             onClick={() => setSection('analytics')}
             className={`btn-linkish ${section === 'analytics' ? 'border-white/30 bg-white/10 text-white' : ''}`}
           >
-            Аналітика
+            Analytics
           </button>
         </section>
       )}
@@ -457,13 +504,13 @@ export default function ReplayUploader() {
       {results && section === 'summary' && (
         <section className="grid min-h-[34rem] grid-cols-1 gap-4 xl:grid-cols-5">
           <article className="glass-panel p-4 xl:col-span-2">
-            <h2 className="mb-3 text-base font-semibold text-white">Карти (winrate)</h2>
+            <h2 className="mb-3 text-base font-semibold text-white">Maps (win rate)</h2>
             <div className="table-shell overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm text-slate-100">
                 <thead className="table-head">
                   <tr>
-                    <th className="px-2.5 py-2">Карта</th>
-                    <th className="px-2.5 py-2 text-center">Боів</th>
+                    <th className="px-2.5 py-2">Map</th>
+                    <th className="px-2.5 py-2 text-center">Battles</th>
                     <th className="px-2.5 py-2 text-center">WR %</th>
                   </tr>
                 </thead>
@@ -482,9 +529,9 @@ export default function ReplayUploader() {
 
           <article className="glass-panel p-4 xl:col-span-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-white">Гравці (середні метрики)</h2>
+              <h2 className="text-base font-semibold text-white">Players (average metrics)</h2>
               <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
-                Мін. боїв
+                Min battles
                 <input
                   type="number"
                   min={1}
@@ -499,11 +546,11 @@ export default function ReplayUploader() {
               <table className="w-full text-left text-xs sm:text-sm text-slate-100">
                 <thead className="table-head">
                   <tr>
-                    <SortableHeader label="Гравець" onClick={() => handleSort('name')} />
-                    <SortableHeader center label="Боів" onClick={() => handleSort('battleCount')} />
-                    <SortableHeader center label="Сер. урон" onClick={() => handleSort('avgDamage')} />
-                    <SortableHeader center label="Сер. кілли" onClick={() => handleSort('avgKills')} />
-                    <SortableHeader center label="Сер. асист" onClick={() => handleSort('avgAssisted')} />
+                    <SortableHeader label="Player" onClick={() => handleSort('name')} />
+                    <SortableHeader center label="Battles" onClick={() => handleSort('battleCount')} />
+                    <SortableHeader center label="Avg damage" onClick={() => handleSort('avgDamage')} />
+                    <SortableHeader center label="Avg kills" onClick={() => handleSort('avgKills')} />
+                    <SortableHeader center label="Avg assist" onClick={() => handleSort('avgAssisted')} />
                   </tr>
                 </thead>
                 <tbody>
@@ -527,45 +574,45 @@ export default function ReplayUploader() {
         <section className="min-h-[34rem] space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <article className="kpi-card">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Краща карта за avg dmg</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Best map by avg damage</p>
               {bestDamageMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{bestDamageMap.mapName}</p>
-                  <p className={`mt-1 text-sm ${getAvgDamageColor(bestDamageMap.avgDamage)}`}>{bestDamageMap.avgDamage.toFixed(0)} середній урон</p>
+                  <p className={`mt-1 text-sm ${getAvgDamageColor(bestDamageMap.avgDamage)}`}>{bestDamageMap.avgDamage.toFixed(0)} average damage</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+                <p className="mt-2 text-sm text-slate-300">Not enough data</p>
               )}
             </article>
 
             <article className="kpi-card">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Ризикова карта</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Risky map</p>
               {worstDamageMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{worstDamageMap.mapName}</p>
-                  <p className="mt-1 text-sm text-zinc-300">{worstDamageMap.avgDamage.toFixed(0)} середній урон</p>
+                  <p className="mt-1 text-sm text-zinc-300">{worstDamageMap.avgDamage.toFixed(0)} average damage</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+                <p className="mt-2 text-sm text-slate-300">Not enough data</p>
               )}
             </article>
 
             <article className="kpi-card">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Кращий winrate</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Best win rate</p>
               {bestWinrateMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{bestWinrateMap.mapName}</p>
                   <p className={`mt-1 text-sm ${getWinrateColor(bestWinrateMap.winrate)}`}>{bestWinrateMap.winrate.toFixed(1)}% WR</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+                <p className="mt-2 text-sm text-slate-300">Not enough data</p>
               )}
             </article>
           </div>
 
           <article className="glass-panel p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-white">Топ гравців на конкретній карті</h2>
+              <h2 className="text-base font-semibold text-white">Top players on selected map</h2>
               <div className="flex flex-wrap items-center gap-2">
                 <CustomSelect
                   value={selectedMap}
@@ -580,7 +627,7 @@ export default function ReplayUploader() {
                 </CustomSelect>
 
                 <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
-                  Мін. боїв
+                  Min battles
                   <input
                     type="number"
                     min={1}
@@ -597,11 +644,11 @@ export default function ReplayUploader() {
                 <thead className="table-head">
                   <tr>
                     <th className="px-2.5 py-2">#</th>
-                    <th className="px-2.5 py-2">Гравець</th>
-                    <th className="px-2.5 py-2 text-center">Боів</th>
-                    <th className="px-2.5 py-2 text-center">Сер. урон</th>
-                    <th className="px-2.5 py-2 text-center">Сер. кілли</th>
-                    <th className="px-2.5 py-2 text-center">Сер. асист</th>
+                    <th className="px-2.5 py-2">Player</th>
+                    <th className="px-2.5 py-2 text-center">Battles</th>
+                    <th className="px-2.5 py-2 text-center">Avg damage</th>
+                    <th className="px-2.5 py-2 text-center">Avg kills</th>
+                    <th className="px-2.5 py-2 text-center">Avg assist</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -621,26 +668,26 @@ export default function ReplayUploader() {
 
             {selectedMapTopPlayers.length === 0 && (
               <p className="mt-3 text-sm text-slate-300">
-                Немає достатніх даних по карті. Спробуйте зменшити мінімальний поріг боїв.
+                Not enough data for this map. Try lowering the minimum battle threshold.
               </p>
             )}
           </article>
 
           <article className="glass-panel p-4">
-            <h3 className="mb-3 text-base font-semibold text-white">Топ карт по середньому урону команди</h3>
+            <h3 className="mb-3 text-base font-semibold text-white">Top maps by player average damage</h3>
             <div className="table-shell overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm text-slate-100">
                 <thead className="table-head">
                   <tr>
-                    <th className="px-2.5 py-2">Карта</th>
-                    <th className="px-2.5 py-2 text-center">Боів</th>
-                    <th className="px-2.5 py-2 text-center">Сер. урон</th>
-                    <th className="px-2.5 py-2 text-center">Сер. кілли</th>
-                    <th className="px-2.5 py-2 text-center">Сер. асист</th>
+                    <th className="px-2.5 py-2">Map</th>
+                    <th className="px-2.5 py-2 text-center">Battles</th>
+                    <th className="px-2.5 py-2 text-center">Avg damage</th>
+                    <th className="px-2.5 py-2 text-center">Avg kills</th>
+                    <th className="px-2.5 py-2 text-center">Avg assist</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mapPerformanceRows.slice(0, 10).map((row) => (
+                  {qualifiedMapPerformanceRows.slice(0, 10).map((row) => (
                     <tr key={row.mapName} className="table-row">
                       <td className="px-2.5 py-2">{row.mapName}</td>
                       <td className="px-2.5 py-2 text-center">{row.battles}</td>
@@ -652,13 +699,16 @@ export default function ReplayUploader() {
                 </tbody>
               </table>
             </div>
+            {qualifiedMapPerformanceRows.length === 0 && (
+              <p className="mt-3 text-sm text-slate-300">Not enough data for maps with the selected minimum battle threshold.</p>
+            )}
           </article>
         </section>
       )}
 
       {results && section === 'summary' && playerRows.length > 0 && (
         <section className="panel-muted p-3 text-xs text-slate-300">
-          Найпопулярніша техніка серед топ-гравців: {trimTankName(results.player_stats[playerRows[0].name]?.battles[0]?.tank ?? 'N/A')}
+          Most common vehicle among top players: {mostCommonTopTank}
         </section>
       )}
     </div>

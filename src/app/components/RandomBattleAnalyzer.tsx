@@ -216,28 +216,37 @@ export default function RandomBattleAnalyzer() {
         });
 
         const rawText = await response.text();
-        let parsed: AnalysisResults;
+        let parsed: AnalysisResults | { error?: string };
 
         try {
-          parsed = JSON.parse(rawText) as AnalysisResults;
+          parsed = JSON.parse(rawText) as AnalysisResults | { error?: string };
         } catch {
-          throw new Error(`Сервер повернув некоректну відповідь (status ${response.status}).`);
+          throw new Error(`Server returned an invalid response (status ${response.status}).`);
         }
 
-        if (Object.keys(parsed).length > 0) {
-          chunks.push(parsed);
+        if (!response.ok) {
+          const message =
+            typeof parsed === 'object' && parsed !== null && 'error' in parsed && typeof parsed.error === 'string'
+              ? parsed.error
+              : `Analysis request failed with status ${response.status}.`;
+          throw new Error(message);
+        }
+
+        const payload = parsed as AnalysisResults;
+        if (Object.keys(payload).length > 0) {
+          chunks.push(payload);
         }
       }
 
       const merged = mergeRandomResults(chunks);
       if (Object.keys(merged).length === 0) {
-        throw new Error('Не вдалося обробити реплеї. Перевірте, що це random бої.');
+        throw new Error('Unable to process replays. Please make sure these are random battle replays.');
       }
 
       setResults(merged);
       setSection('summary');
     } catch (analysisError) {
-      setError(analysisError instanceof Error ? analysisError.message : 'Невідома помилка аналізу.');
+      setError(analysisError instanceof Error ? analysisError.message : 'Unknown analysis error.');
     } finally {
       setIsLoading(false);
     }
@@ -267,7 +276,7 @@ export default function RandomBattleAnalyzer() {
       const rightValue = right[key];
 
       if (typeof leftValue === 'string' && typeof rightValue === 'string') {
-        const compareResult = leftValue.localeCompare(rightValue, 'uk', { sensitivity: 'base' });
+        const compareResult = leftValue.localeCompare(rightValue, 'en', { sensitivity: 'base' });
         return tankSort.direction === 'ascending' ? compareResult : -compareResult;
       }
 
@@ -325,7 +334,7 @@ export default function RandomBattleAnalyzer() {
       const rightValue = right[key];
 
       if (typeof leftValue === 'string' && typeof rightValue === 'string') {
-        const compareResult = leftValue.localeCompare(rightValue, 'uk', { sensitivity: 'base' });
+        const compareResult = leftValue.localeCompare(rightValue, 'en', { sensitivity: 'base' });
         return mapSort.direction === 'ascending' ? compareResult : -compareResult;
       }
 
@@ -432,7 +441,7 @@ export default function RandomBattleAnalyzer() {
       <section className="glass-panel p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2">
           <Swords className="h-4 w-4" />
-          <h1 className="text-lg font-semibold text-white sm:text-xl">Випадкові бої</h1>
+          <h1 className="text-lg font-semibold text-white sm:text-xl">Random Battles</h1>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -450,16 +459,16 @@ export default function RandomBattleAnalyzer() {
 
           <label htmlFor={fileInputId} className="btn-secondary w-full sm:w-auto">
             <UploadCloud className="h-4 w-4" />
-            Обрати файли
+            Select Files
           </label>
 
           <p className="text-sm text-slate-300">
-            {files.length > 0 ? `Обрано файлів: ${files.length}` : 'Завантажте .wotreplay файли random боїв'}
+            {files.length > 0 ? `Files selected: ${files.length}` : 'Upload .wotreplay files from random battles'}
           </p>
 
           <button type="button" onClick={handleAnalyze} disabled={isLoading || files.length === 0} className="btn-primary w-full sm:ml-auto sm:w-auto">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            {isLoading ? 'Аналіз...' : 'Почати аналіз'}
+            {isLoading ? 'Analyzing...' : 'Run Analysis'}
           </button>
         </div>
       </section>
@@ -480,14 +489,14 @@ export default function RandomBattleAnalyzer() {
             onClick={() => setSection('summary')}
             className={`btn-linkish ${section === 'summary' ? 'border-white/30 bg-white/10 text-white' : ''}`}
           >
-            Огляд
+            Overview
           </button>
           <button
             type="button"
             onClick={() => setSection('analytics')}
             className={`btn-linkish ${section === 'analytics' ? 'border-white/30 bg-white/10 text-white' : ''}`}
           >
-            Аналітика
+            Analytics
           </button>
         </section>
       )}
@@ -495,17 +504,17 @@ export default function RandomBattleAnalyzer() {
       {results && section === 'summary' && (
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-5">
           <article className={`glass-panel flex min-h-0 flex-col p-4 xl:col-span-3 ${tankScrollEnabled ? 'max-h-[34rem]' : ''}`}>
-            <h2 className="mb-3 text-base font-semibold text-white">Результати по техніці</h2>
+            <h2 className="mb-3 text-base font-semibold text-white">Vehicle Results</h2>
             <div className={`table-shell min-h-0 overflow-hidden ${tankScrollEnabled ? 'flex-1' : ''}`}>
               <CustomScroll enabled={tankScrollEnabled} className={tankScrollEnabled ? 'h-full overflow-x-auto' : 'overflow-x-auto'}>
                 <table className="w-full text-left text-xs sm:text-sm text-slate-100">
                   <thead className="table-head">
                     <tr>
-                      <SortableHeader label="Техніка" onClick={() => handleSort('tankName')} />
-                      <SortableHeader center label="Боів" onClick={() => handleSort('battles')} />
+                      <SortableHeader label="Vehicle" onClick={() => handleSort('tankName')} />
+                      <SortableHeader center label="Battles" onClick={() => handleSort('battles')} />
                       <SortableHeader center label="WR %" onClick={() => handleSort('winrate')} />
-                      <SortableHeader center label="Живучість %" onClick={() => handleSort('survivability')} />
-                      <SortableHeader center label="Сер. урон" onClick={() => handleSort('avgDamage')} />
+                      <SortableHeader center label="Survival %" onClick={() => handleSort('survivability')} />
+                      <SortableHeader center label="Avg damage" onClick={() => handleSort('avgDamage')} />
                     </tr>
                   </thead>
                   <tbody>
@@ -525,15 +534,15 @@ export default function RandomBattleAnalyzer() {
           </article>
 
           <article className={`glass-panel flex h-full min-h-0 flex-col p-4 xl:col-span-2 ${mapScrollEnabled ? 'max-h-[34rem]' : ''}`}>
-            <h2 className="mb-3 text-base font-semibold text-white">Карти</h2>
+            <h2 className="mb-3 text-base font-semibold text-white">Maps</h2>
             <div className={`table-shell min-h-0 overflow-hidden ${mapScrollEnabled ? 'flex-1' : ''}`}>
               <CustomScroll enabled={mapScrollEnabled} className={mapScrollEnabled ? 'h-full overflow-x-auto' : 'overflow-x-auto'}>
                 <table className="w-full text-left text-xs sm:text-sm text-slate-100">
                   <thead className="table-head">
                     <tr>
-                      <SortableHeader label="Карта" onClick={() => handleMapSort('mapName')} />
-                      <SortableHeader center label="Боів" onClick={() => handleMapSort('battles')} />
-                      <SortableHeader center label="Сер. урон" onClick={() => handleMapSort('avgDamage')} />
+                      <SortableHeader label="Map" onClick={() => handleMapSort('mapName')} />
+                      <SortableHeader center label="Battles" onClick={() => handleMapSort('battles')} />
+                      <SortableHeader center label="Avg damage" onClick={() => handleMapSort('avgDamage')} />
                       <SortableHeader center label="WR %" onClick={() => handleMapSort('winrate')} />
                     </tr>
                   </thead>
@@ -558,7 +567,7 @@ export default function RandomBattleAnalyzer() {
         <section className="min-h-[34rem] space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
-              Мін. боїв для KPI
+              Min battles for KPIs
               <input
                 type="number"
                 min={1}
@@ -571,45 +580,45 @@ export default function RandomBattleAnalyzer() {
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <article className="kpi-card">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Кращий avg dmg</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Best avg damage</p>
               {bestDamageMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{bestDamageMap.mapName}</p>
-                  <p className={`mt-1 text-sm ${getAvgDamageColor(bestDamageMap.avgDamage)}`}>{bestDamageMap.avgDamage.toFixed(0)} середній урон</p>
+                  <p className={`mt-1 text-sm ${getAvgDamageColor(bestDamageMap.avgDamage)}`}>{bestDamageMap.avgDamage.toFixed(0)} average damage</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+                <p className="mt-2 text-sm text-slate-300">Not enough data</p>
               )}
             </article>
 
             <article className="kpi-card">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Кращий WR</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Best WR</p>
               {bestWinrateMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{bestWinrateMap.mapName}</p>
                   <p className={`mt-1 text-sm ${getWinrateColor(bestWinrateMap.winrate)}`}>{bestWinrateMap.winrate.toFixed(1)}% WR</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+                <p className="mt-2 text-sm text-slate-300">Not enough data</p>
               )}
             </article>
 
             <article className="kpi-card">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Найкраща живучість</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Best survival</p>
               {bestSurvivalMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{bestSurvivalMap.mapName}</p>
-                  <p className="mt-1 text-sm text-zinc-200">{bestSurvivalMap.survivability.toFixed(1)}% виживання</p>
+                  <p className="mt-1 text-sm text-zinc-200">{bestSurvivalMap.survivability.toFixed(1)}% survival</p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-300">Недостатньо даних</p>
+                <p className="mt-2 text-sm text-slate-300">Not enough data</p>
               )}
             </article>
           </div>
 
           <article className="glass-panel p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-white">Найкращі танки на певній карті</h2>
+              <h2 className="text-base font-semibold text-white">Best tanks on a selected map</h2>
               <CustomSelect value={selectedMap} onChange={(event) => setSelectedMap(event.target.value)} className="min-w-[180px]">
                 {mapRows.map((map) => (
                   <option key={map.mapName} value={map.mapName}>
@@ -624,11 +633,11 @@ export default function RandomBattleAnalyzer() {
                 <thead className="table-head">
                   <tr>
                     <th className="px-2.5 py-2">#</th>
-                    <th className="px-2.5 py-2">Техніка</th>
-                    <th className="px-2.5 py-2 text-center">Боів</th>
-                    <th className="px-2.5 py-2 text-center">Сер. урон</th>
+                    <th className="px-2.5 py-2">Vehicle</th>
+                    <th className="px-2.5 py-2 text-center">Battles</th>
+                    <th className="px-2.5 py-2 text-center">Avg damage</th>
                     <th className="px-2.5 py-2 text-center">WR %</th>
-                    <th className="px-2.5 py-2 text-center">Живучість %</th>
+                    <th className="px-2.5 py-2 text-center">Survival %</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -647,21 +656,21 @@ export default function RandomBattleAnalyzer() {
             </div>
 
             {selectedMapTopTanks.length === 0 && (
-              <p className="mt-3 text-sm text-slate-300">Немає достатніх даних по цій карті для вказаного порогу боїв.</p>
+              <p className="mt-3 text-sm text-slate-300">Not enough data for this map with the selected battle threshold.</p>
             )}
           </article>
 
           <article className="glass-panel p-4">
-            <h3 className="mb-3 text-base font-semibold text-white">Топ карт за середнім уроном</h3>
+            <h3 className="mb-3 text-base font-semibold text-white">Top maps by average damage</h3>
             <div className="table-shell overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm text-slate-100">
                 <thead className="table-head">
                   <tr>
-                    <th className="px-2.5 py-2">Карта</th>
-                    <th className="px-2.5 py-2 text-center">Боів</th>
-                    <th className="px-2.5 py-2 text-center">Сер. урон</th>
+                    <th className="px-2.5 py-2">Map</th>
+                    <th className="px-2.5 py-2 text-center">Battles</th>
+                    <th className="px-2.5 py-2 text-center">Avg damage</th>
                     <th className="px-2.5 py-2 text-center">WR %</th>
-                    <th className="px-2.5 py-2 text-center">Живучість %</th>
+                    <th className="px-2.5 py-2 text-center">Survival %</th>
                   </tr>
                 </thead>
                 <tbody>

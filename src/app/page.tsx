@@ -9,18 +9,18 @@ export default function Home() {
           <div className="max-w-2xl space-y-3">
             <span className="tag">
               <Sparkles className="mr-2 h-3.5 w-3.5" />
-              Головний дашборд
+              Main Dashboard
             </span>
             <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-              Оберіть режим аналізу реплеїв
+              Choose your replay analysis mode
             </h1>
             <p className="text-sm text-slate-300 sm:text-base">
-              Два окремі модулі: аналіз АБС-команди та аналіз випадкових боїв. Кожен модуль має власну статистику і
-              розширену аналітику по картах.
+              Two dedicated modules: ABS team replay analysis and random battle analysis. Each module includes its own
+              stats and detailed map insights.
             </p>
           </div>
           <Link href="/analytics" className="btn-linkish w-full sm:w-auto">
-            Перейти до центру аналітики
+            Open Analytics Hub
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -32,19 +32,19 @@ export default function Home() {
           className="glass-panel group flex min-h-56 flex-col justify-between p-5 transition hover:translate-y-[-2px]"
         >
           <div className="space-y-3">
-            <span className="tag">АБС</span>
+            <span className="tag">ABS</span>
             <div className="flex items-center gap-3">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white">
                 <Shield className="h-5 w-5" />
               </span>
-              <h2 className="text-xl font-semibold text-white">АБС реплеї</h2>
+              <h2 className="text-xl font-semibold text-white">ABS Replays</h2>
             </div>
             <p className="text-sm text-slate-300">
-              Порівняння гравців команди, winrate по картах, топ гравців на вибраній карті та метрики ефективності.
+              Compare team player performance, map win rate, top players on each map, and core efficiency metrics.
             </p>
           </div>
           <span className="mt-4 inline-flex items-center gap-2 text-sm text-white">
-            Відкрити модуль
+            Open Module
             <ArrowRight className="h-4 w-4" />
           </span>
         </Link>
@@ -59,15 +59,14 @@ export default function Home() {
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white">
                 <Swords className="h-5 w-5" />
               </span>
-              <h2 className="text-xl font-semibold text-white">Випадкові бої</h2>
+              <h2 className="text-xl font-semibold text-white">Random Battles</h2>
             </div>
             <p className="text-sm text-slate-300">
-              Аналіз техніки та карт: де найкращий середній урон, де кращий winrate і які танки найсильніші на певній
-              карті.
+              Analyze vehicles and maps to find the best average damage, strongest win rate, and top tanks per map.
             </p>
           </div>
           <span className="mt-4 inline-flex items-center gap-2 text-sm text-white">
-            Відкрити модуль
+            Open Module
             <ArrowRight className="h-4 w-4" />
           </span>
         </Link>

@@ -3,14 +3,14 @@ import { ArrowRight, BarChart3, Shield, Swords } from 'lucide-react';
 
 const analyticsCards = [
   {
-    title: 'АБС аналітика',
-    description: 'Топ гравців на вибраній карті, карти з найкращим і найгіршим середнім уроном.',
+    title: 'ABS Analytics',
+    description: 'Top players per selected map, plus maps with the highest and lowest average damage.',
     href: '/abs-replays',
     icon: Shield,
   },
   {
-    title: 'Аналітика Random',
-    description: 'Найкращий середній урон по картах, кращий winrate та рейтинг техніки на конкретній карті.',
+    title: 'Random Analytics',
+    description: 'Best average damage by map, strongest win rate, and vehicle rankings on specific maps.',
     href: '/random-battles',
     icon: Swords,
   },
@@ -25,10 +25,10 @@ export default function AnalyticsPage() {
             <BarChart3 className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-semibold text-white">Центр аналітики</h1>
+            <h1 className="text-2xl font-semibold text-white">Analytics Hub</h1>
             <p className="mt-2 text-sm text-slate-300">
-              Тут швидкий доступ до всіх аналітичних модулів. Завантажуйте реплеї у потрібному режимі і отримуйте
-              деталізовану статистику по картах, гравцях і техніці.
+              Quick access to all analysis modules. Upload replays in the mode you need and get detailed stats across
+              maps, players, and vehicles.
             </p>
           </div>
         </div>
@@ -45,7 +45,7 @@ export default function AnalyticsPage() {
               <p className="mt-2 text-sm text-slate-300">{description}</p>
             </div>
             <span className="mt-5 inline-flex items-center gap-2 text-sm text-white">
-              Перейти
+              Open
               <ArrowRight className="h-4 w-4" />
             </span>
           </Link>

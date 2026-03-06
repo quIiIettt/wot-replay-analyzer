@@ -28,8 +28,6 @@ type ProcessResult = {
     player_stats: Record<string, PlayerAgg>;
     map_stats: Record<string, { wins: number; battles: number }>;
 };
-
-// ---- JSON мінімальні типи ----
 type VehicleMeta = {
     name?: string;
     team?: number | string;
@@ -133,17 +131,14 @@ export function parseSingleReplay(replayPath: string): ParseResult {
         if (isBattleMetadata(obj)) battle_metadata = obj;
         else if (isBattleResults(obj)) {
             battle_results = obj;
-            // не break: інколи metadata може йти після results; але якщо хочеш — можна break;
         }
     }
 
     if (!battle_metadata || !battle_results) return null;
 
-    const map_name: string = battle_metadata.mapDisplayName ?? "Невідома карта";
+    const map_name: string = battle_metadata.mapDisplayName ?? "Unknown map";
     const main_player_name: string | undefined = battle_metadata.playerName;
     if (!main_player_name) return null;
-
-    // команда головного гравця
     let main_player_team: number | null = null;
     const vehicles_meta = (battle_metadata.vehicles ?? {}) as Record<string, VehicleMeta>;
     for (const v of Object.values<VehicleMeta>(vehicles_meta)) {
@@ -153,15 +148,11 @@ export function parseSingleReplay(replayPath: string): ParseResult {
         }
     }
     if (main_player_team == null || Number.isNaN(main_player_team)) return null;
-
-    // переможець
     const winner_team_raw = battle_results?.common?.winnerTeam ?? 0;
     const winner_team = Number(winner_team_raw) || 0;
     let outcome: "win" | "loss" | "draw" = "draw";
     if (winner_team === main_player_team) outcome = "win";
     else if (winner_team !== 0) outcome = "loss";
-
-    // союзники з results
     const allied_team_stats: AlliedStat[] = [];
     const vehicles_results = (battle_results.vehicles ?? {}) as Record<string, PlayerEntry[]>;
     for (const arr of Object.values<PlayerEntry[]>(vehicles_results)) {
@@ -179,8 +170,6 @@ export function parseSingleReplay(replayPath: string): ParseResult {
             });
         }
     }
-
-    // підміняємо імена/танки з metadata по індексу
     const allies_in_meta = Object.values<VehicleMeta>(vehicles_meta)
         .filter((x) => Number(x.team) === main_player_team)
         .map((p) => ({
@@ -194,7 +183,7 @@ export function parseSingleReplay(replayPath: string): ParseResult {
             copy.name = allies_in_meta[i].name || copy.name;
             copy.tank = allies_in_meta[i].tank || copy.tank;
         }
-        if (!copy.name) copy.name = `Гравець на ${copy.tank}`;
+        if (!copy.name) copy.name = `Player in ${copy.tank}`;
         return copy;
     });
 
@@ -202,7 +191,7 @@ export function parseSingleReplay(replayPath: string): ParseResult {
 }
 
 export function processReplaysInFolder(folderPath: string): ProcessResult {
-    const files = fs.readdirSync(folderPath).filter((f) => f.endsWith(".wotreplay"));
+    const files = fs.readdirSync(folderPath).filter((f) => f.toLowerCase().endsWith(".wotreplay"));
     const player_stats: Record<string, PlayerAgg> = {};
     const map_stats: Record<string, { wins: number; battles: number }> = {};
 

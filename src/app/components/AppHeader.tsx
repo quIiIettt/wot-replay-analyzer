@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { Home, LineChart, Radar } from 'lucide-react';
 
 const navItems = [
-  { href: '/', label: 'На головну', icon: Home },
-  { href: '/analytics', label: 'Аналітика', icon: LineChart },
+  { href: '/', label: 'Home', icon: Home },
+  { href: '/analytics', label: 'Analytics', icon: LineChart },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -27,8 +27,8 @@ export default function AppHeader() {
             <Radar className="h-4 w-4 text-primary" />
           </span>
           <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-slate-300">WOT Replay Analyzer</p>
-            <p className="text-sm font-semibold text-white">Dashboard</p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-slate-300">WoT Replay Analyzer</p>
+            <p className="text-sm font-semibold text-white">Command Center</p>
           </div>
         </Link>
 
