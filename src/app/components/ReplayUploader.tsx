@@ -57,6 +57,9 @@ type MapPlayerRow = {
   avgAssisted: number;
 };
 
+const API_BATCH_MAX_BYTES = 3_500_000;
+const API_BATCH_MAX_FILES = 10;
+
 function trimTankName(fullName: string): string {
   const parts = fullName.split('_');
   if (parts.length > 1) {
@@ -82,7 +85,7 @@ function getAvgDamageColor(damage: number): string {
   return 'text-white';
 }
 
-function batchFilesBySize(files: File[], maxBatchBytes = 16 * 1024 * 1024, maxFilesPerBatch = 25): File[][] {
+function batchFilesBySize(files: File[], maxBatchBytes = API_BATCH_MAX_BYTES, maxFilesPerBatch = API_BATCH_MAX_FILES): File[][] {
   const batches: File[][] = [];
   let current: File[] = [];
   let currentBytes = 0;
@@ -174,7 +177,7 @@ export default function ReplayUploader() {
     setResults(null);
 
     try {
-      const batches = batchFilesBySize(files, 16 * 1024 * 1024, 25);
+      const batches = batchFilesBySize(files, API_BATCH_MAX_BYTES, API_BATCH_MAX_FILES);
       const chunks: AnalysisResults[] = [];
 
       for (const group of batches) {
@@ -187,15 +190,21 @@ export default function ReplayUploader() {
         });
 
         const rawText = await response.text();
-        let parsed: AnalysisResults | { error?: string };
+        let parsed: AnalysisResults | { error?: string } | null = null;
 
         try {
           parsed = JSON.parse(rawText) as AnalysisResults | { error?: string };
         } catch {
+          if (!response.ok && response.status === 413) {
+            throw new Error('Uploaded batch is too large for Vercel (413). Try fewer files per request.');
+          }
           throw new Error(`Server returned an invalid response (status ${response.status}).`);
         }
 
         if (!response.ok) {
+          if (response.status === 413) {
+            throw new Error('Uploaded batch is too large for Vercel (413). Try fewer files per request.');
+          }
           const message =
             typeof parsed === 'object' && parsed !== null && 'error' in parsed && typeof parsed.error === 'string'
               ? parsed.error
