@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpDown, Loader2, Rocket, Shield, UploadCloud, XCircle } from 'lucide-react';
+import CustomScroll from './CustomScroll';
 import CustomSelect from './CustomSelect';
 
 type Battle = {
@@ -57,8 +58,24 @@ type MapPlayerRow = {
   avgAssisted: number;
 };
 
-const API_BATCH_MAX_BYTES = 3_500_000;
-const API_BATCH_MAX_FILES = 10;
+type WorkerProgressMessage = {
+  type: 'progress';
+  processed: number;
+  total: number;
+};
+
+type WorkerResultMessage = {
+  type: 'result';
+  mode: 'abs' | 'random';
+  result: AnalysisResults;
+};
+
+type WorkerErrorMessage = {
+  type: 'error';
+  error: string;
+};
+
+type ReplayWorkerMessage = WorkerProgressMessage | WorkerResultMessage | WorkerErrorMessage;
 
 function trimTankName(fullName: string): string {
   const parts = fullName.split('_');
@@ -69,79 +86,21 @@ function trimTankName(fullName: string): string {
 }
 
 function getWinrateColor(winrate: number): string {
-  if (winrate <= 46) return 'text-zinc-500';
-  if (winrate <= 52) return 'text-zinc-400';
-  if (winrate <= 57) return 'text-zinc-300';
-  if (winrate <= 63) return 'text-zinc-200';
-  return 'text-zinc-100';
+  if (winrate < 47) return 'text-red-400';
+  if (winrate <= 48) return 'text-orange-300';
+  if (winrate <= 52.5) return 'text-yellow-300';
+  if (winrate < 58) return 'text-green-300';
+  if (winrate < 64) return 'text-cyan-300';
+  return 'text-violet-300';
 }
 
 function getAvgDamageColor(damage: number): string {
-  if (damage <= 1400) return 'text-zinc-500';
-  if (damage <= 1700) return 'text-zinc-400';
-  if (damage <= 2100) return 'text-zinc-300';
-  if (damage <= 2600) return 'text-zinc-200';
-  if (damage <= 3200) return 'text-zinc-100';
-  return 'text-white';
-}
-
-function batchFilesBySize(files: File[], maxBatchBytes = API_BATCH_MAX_BYTES, maxFilesPerBatch = API_BATCH_MAX_FILES): File[][] {
-  const batches: File[][] = [];
-  let current: File[] = [];
-  let currentBytes = 0;
-
-  for (const file of files) {
-    const fitsBySize = currentBytes + file.size <= maxBatchBytes;
-    const fitsByCount = current.length < maxFilesPerBatch;
-
-    if (current.length > 0 && (!fitsBySize || !fitsByCount)) {
-      batches.push(current);
-      current = [file];
-      currentBytes = file.size;
-    } else {
-      current.push(file);
-      currentBytes += file.size;
-    }
-  }
-
-  if (current.length > 0) {
-    batches.push(current);
-  }
-
-  return batches;
-}
-
-function mergeAnalysisResults(parts: AnalysisResults[]): AnalysisResults {
-  const merged: AnalysisResults = {
-    player_stats: {},
-    map_stats: {},
-  };
-
-  for (const part of parts) {
-    for (const [playerName, playerStats] of Object.entries(part.player_stats)) {
-      const target =
-        merged.player_stats[playerName] ??
-        (merged.player_stats[playerName] = {
-          battles: [],
-          total_damage: 0,
-          total_kills: 0,
-          total_assisted: 0,
-        });
-
-      target.battles.push(...playerStats.battles);
-      target.total_damage += playerStats.total_damage;
-      target.total_kills += playerStats.total_kills;
-      target.total_assisted += playerStats.total_assisted;
-    }
-
-    for (const [mapName, mapStats] of Object.entries(part.map_stats)) {
-      const target = merged.map_stats[mapName] ?? (merged.map_stats[mapName] = { wins: 0, battles: 0 });
-      target.wins += mapStats.wins;
-      target.battles += mapStats.battles;
-    }
-  }
-
-  return merged;
+  if (damage < 1300) return 'text-red-400';
+  if (damage <= 1600) return 'text-orange-300';
+  if (damage <= 1899) return 'text-yellow-300';
+  if (damage <= 2200) return 'text-green-300';
+  if (damage <= 2500) return 'text-cyan-300';
+  return 'text-violet-300';
 }
 
 export default function ReplayUploader() {
@@ -149,6 +108,7 @@ export default function ReplayUploader() {
   const [results, setResults] = useState<AnalysisResults | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progressText, setProgressText] = useState<string | null>(null);
 
   const [section, setSection] = useState<'summary' | 'analytics'>('summary');
   const [minBattles, setMinBattles] = useState(1);
@@ -165,6 +125,7 @@ export default function ReplayUploader() {
     const next = event.target.files ? Array.from(event.target.files) : [];
     setFiles(next);
     setError(null);
+    setProgressText(null);
   };
 
   const handleAnalyze = async () => {
@@ -175,60 +136,58 @@ export default function ReplayUploader() {
     setIsLoading(true);
     setError(null);
     setResults(null);
+    setProgressText(`0 / ${files.length}`);
 
     try {
-      const batches = batchFilesBySize(files, API_BATCH_MAX_BYTES, API_BATCH_MAX_FILES);
-      const chunks: AnalysisResults[] = [];
+      const analyzed = await new Promise<AnalysisResults>((resolve, reject) => {
+        const worker = new Worker(new URL('../workers/replayWorker.ts', import.meta.url));
 
-      for (const group of batches) {
-        const formData = new FormData();
-        group.forEach((file) => formData.append('replays', file, file.name));
+        worker.onmessage = (event: MessageEvent<ReplayWorkerMessage>) => {
+          const message = event.data;
 
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          body: formData,
+          if (message.type === 'progress') {
+            setProgressText(`${message.processed} / ${message.total}`);
+            return;
+          }
+
+          worker.terminate();
+
+          if (message.type === 'error') {
+            reject(new Error(message.error));
+            return;
+          }
+
+          if (message.type === 'result' && message.mode === 'abs') {
+            resolve(message.result);
+            return;
+          }
+
+          reject(new Error('Unexpected worker response.'));
+        };
+
+        worker.onerror = () => {
+          worker.terminate();
+          reject(new Error('Replay worker failed to process files.'));
+        };
+
+        worker.postMessage({
+          type: 'analyze',
+          mode: 'abs',
+          files,
         });
+      });
 
-        const rawText = await response.text();
-        let parsed: AnalysisResults | { error?: string } | null = null;
-
-        try {
-          parsed = JSON.parse(rawText) as AnalysisResults | { error?: string };
-        } catch {
-          if (!response.ok && response.status === 413) {
-            throw new Error('Uploaded batch is too large for Vercel (413). Try fewer files per request.');
-          }
-          throw new Error(`Server returned an invalid response (status ${response.status}).`);
-        }
-
-        if (!response.ok) {
-          if (response.status === 413) {
-            throw new Error('Uploaded batch is too large for Vercel (413). Try fewer files per request.');
-          }
-          const message =
-            typeof parsed === 'object' && parsed !== null && 'error' in parsed && typeof parsed.error === 'string'
-              ? parsed.error
-              : `Analysis request failed with status ${response.status}.`;
-          throw new Error(message);
-        }
-
-        const payload = parsed as AnalysisResults;
-        if (payload.player_stats && Object.keys(payload.player_stats).length > 0) {
-          chunks.push(payload);
-        }
-      }
-
-      const merged = mergeAnalysisResults(chunks);
-      if (!merged.player_stats || Object.keys(merged.player_stats).length === 0) {
+      if (!analyzed.player_stats || Object.keys(analyzed.player_stats).length === 0) {
         throw new Error('Unable to process replays. Please verify the file contents.');
       }
 
-      setResults(merged);
+      setResults(analyzed);
       setSection('summary');
     } catch (analysisError) {
       setError(analysisError instanceof Error ? analysisError.message : 'Unknown analysis error.');
     } finally {
       setIsLoading(false);
+      setProgressText(null);
     }
   };
 
@@ -445,6 +404,10 @@ export default function ReplayUploader() {
     });
   };
 
+  const SCROLL_THRESHOLD = 15;
+  const playerScrollEnabled = playerRows.length >= SCROLL_THRESHOLD;
+  const mapScrollEnabled = mapRows.length >= SCROLL_THRESHOLD;
+
   return (
     <div className="space-y-6">
       <section className="glass-panel p-4 sm:p-5">
@@ -474,6 +437,8 @@ export default function ReplayUploader() {
           <p className="text-sm text-slate-300">
             {files.length > 0 ? `Files selected: ${files.length}` : 'Upload .wotreplay files for ABS analysis'}
           </p>
+
+          {isLoading && progressText && <p className="text-xs text-slate-400">Processed: {progressText}</p>}
 
           <button type="button" onClick={handleAnalyze} disabled={isLoading || files.length === 0} className="btn-primary w-full sm:ml-auto sm:w-auto">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
@@ -512,31 +477,33 @@ export default function ReplayUploader() {
 
       {results && section === 'summary' && (
         <section className="grid min-h-[34rem] grid-cols-1 gap-4 xl:grid-cols-5">
-          <article className="glass-panel p-4 xl:col-span-2">
+          <article className={`glass-panel flex min-h-0 flex-col p-4 xl:col-span-2 ${mapScrollEnabled ? 'max-h-[34rem]' : ''}`}>
             <h2 className="mb-3 text-base font-semibold text-white">Maps (win rate)</h2>
-            <div className="table-shell overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
-                <thead className="table-head">
-                  <tr>
-                    <th className="px-2.5 py-2">Map</th>
-                    <th className="px-2.5 py-2 text-center">Battles</th>
-                    <th className="px-2.5 py-2 text-center">WR %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mapRows.map((row) => (
-                    <tr key={row.mapName} className="table-row">
-                      <td className="px-2.5 py-2">{row.mapName}</td>
-                      <td className="px-2.5 py-2 text-center">{row.battles}</td>
-                      <td className={`px-2.5 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>{row.winrate.toFixed(1)}%</td>
+            <div className={`table-shell min-h-0 overflow-hidden ${mapScrollEnabled ? 'flex-1' : ''}`}>
+              <CustomScroll enabled={mapScrollEnabled} className={mapScrollEnabled ? 'h-full overflow-x-auto' : 'overflow-x-auto'}>
+                <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                  <thead className="table-head">
+                    <tr>
+                      <th className="px-2.5 py-2">Map</th>
+                      <th className="px-2.5 py-2 text-center">Battles</th>
+                      <th className="px-2.5 py-2 text-center">WR %</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {mapRows.map((row) => (
+                      <tr key={row.mapName} className="table-row">
+                        <td className="px-2.5 py-2">{row.mapName}</td>
+                        <td className="px-2.5 py-2 text-center">{row.battles}</td>
+                        <td className={`px-2.5 py-2 text-center font-semibold ${getWinrateColor(row.winrate)}`}>{row.winrate.toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CustomScroll>
             </div>
           </article>
 
-          <article className="glass-panel p-4 xl:col-span-3">
+          <article className={`glass-panel flex min-h-0 flex-col p-4 xl:col-span-3 ${playerScrollEnabled ? 'max-h-[34rem]' : ''}`}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-white">Players (average metrics)</h2>
               <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
@@ -551,29 +518,31 @@ export default function ReplayUploader() {
               </label>
             </div>
 
-            <div className="table-shell overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm text-slate-100">
-                <thead className="table-head">
-                  <tr>
-                    <SortableHeader label="Player" onClick={() => handleSort('name')} />
-                    <SortableHeader center label="Battles" onClick={() => handleSort('battleCount')} />
-                    <SortableHeader center label="Avg damage" onClick={() => handleSort('avgDamage')} />
-                    <SortableHeader center label="Avg kills" onClick={() => handleSort('avgKills')} />
-                    <SortableHeader center label="Avg assist" onClick={() => handleSort('avgAssisted')} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {playerRows.map((row) => (
-                    <tr key={row.name} className="table-row">
-                      <td className="px-2.5 py-2">{row.name}</td>
-                      <td className="px-2.5 py-2 text-center">{row.battleCount}</td>
-                      <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
-                      <td className="px-2.5 py-2 text-center">{row.avgKills.toFixed(2)}</td>
-                      <td className="px-2.5 py-2 text-center">{row.avgAssisted.toFixed(0)}</td>
+            <div className={`table-shell min-h-0 overflow-hidden ${playerScrollEnabled ? 'flex-1' : ''}`}>
+              <CustomScroll enabled={playerScrollEnabled} className={playerScrollEnabled ? 'h-full overflow-x-auto' : 'overflow-x-auto'}>
+                <table className="w-full text-left text-xs sm:text-sm text-slate-100">
+                  <thead className="table-head">
+                    <tr>
+                      <SortableHeader label="Player" onClick={() => handleSort('name')} />
+                      <SortableHeader center label="Battles" onClick={() => handleSort('battleCount')} />
+                      <SortableHeader center label="Avg damage" onClick={() => handleSort('avgDamage')} />
+                      <SortableHeader center label="Avg kills" onClick={() => handleSort('avgKills')} />
+                      <SortableHeader center label="Avg assist" onClick={() => handleSort('avgAssisted')} />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {playerRows.map((row) => (
+                      <tr key={row.name} className="table-row">
+                        <td className="px-2.5 py-2">{row.name}</td>
+                        <td className="px-2.5 py-2 text-center">{row.battleCount}</td>
+                        <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
+                        <td className="px-2.5 py-2 text-center">{row.avgKills.toFixed(2)}</td>
+                        <td className="px-2.5 py-2 text-center">{row.avgAssisted.toFixed(0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CustomScroll>
             </div>
           </article>
         </section>
@@ -599,7 +568,7 @@ export default function ReplayUploader() {
               {worstDamageMap ? (
                 <>
                   <p className="mt-2 text-lg font-semibold text-white">{worstDamageMap.mapName}</p>
-                  <p className="mt-1 text-sm text-zinc-300">{worstDamageMap.avgDamage.toFixed(0)} average damage</p>
+                  <p className={`mt-1 text-sm ${getAvgDamageColor(worstDamageMap.avgDamage)}`}>{worstDamageMap.avgDamage.toFixed(0)} average damage</p>
                 </>
               ) : (
                 <p className="mt-2 text-sm text-slate-300">Not enough data</p>
@@ -625,8 +594,9 @@ export default function ReplayUploader() {
               <div className="flex flex-wrap items-center gap-2">
                 <CustomSelect
                   value={selectedMap}
-                  onChange={(event) => setSelectedMap(event.target.value)}
-                  className="min-w-[180px]"
+                  onValueChange={setSelectedMap}
+                  variant="map"
+                  className="min-w-[280px]"
                 >
                   {mapRows.map((map) => (
                     <option key={map.mapName} value={map.mapName}>
