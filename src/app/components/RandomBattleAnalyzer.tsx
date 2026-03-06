@@ -104,11 +104,11 @@ function getWinrateColor(winrate: number): string {
 }
 
 function getAvgDamageColor(damage: number): string {
-  if (damage < 1300) return 'text-red-400';
-  if (damage <= 1600) return 'text-orange-300';
-  if (damage <= 1899) return 'text-yellow-300';
-  if (damage <= 2200) return 'text-green-300';
-  if (damage <= 2500) return 'text-cyan-300';
+  if (damage <= 1699) return 'text-red-400';
+  if (damage <= 2199) return 'text-orange-300';
+  if (damage <= 2700) return 'text-yellow-300';
+  if (damage <= 3299) return 'text-green-300';
+  if (damage <= 3799) return 'text-cyan-300';
   return 'text-violet-300';
 }
 
