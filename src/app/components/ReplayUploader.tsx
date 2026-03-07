@@ -76,6 +76,7 @@ type WorkerErrorMessage = {
 };
 
 type ReplayWorkerMessage = WorkerProgressMessage | WorkerResultMessage | WorkerErrorMessage;
+const SCROLL_THRESHOLD = 15;
 
 function trimTankName(fullName: string): string {
   const parts = fullName.split('_');
@@ -109,6 +110,7 @@ export default function ReplayUploader() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progressText, setProgressText] = useState<string | null>(null);
+  const [isPlayerListExpanded, setIsPlayerListExpanded] = useState(false);
 
   const [section, setSection] = useState<'summary' | 'analytics'>('summary');
   const [minBattles, setMinBattles] = useState(1);
@@ -331,6 +333,12 @@ export default function ReplayUploader() {
     }
   }, [mapRows, selectedMap]);
 
+  useEffect(() => {
+    if (!results || playerRows.length < SCROLL_THRESHOLD) {
+      setIsPlayerListExpanded(false);
+    }
+  }, [results, playerRows.length]);
+
   const selectedMapTopPlayers = useMemo(() => {
     return mapPlayerRows
       .filter((row) => row.mapName === selectedMap && row.battles >= mapMinBattles)
@@ -404,8 +412,8 @@ export default function ReplayUploader() {
     });
   };
 
-  const SCROLL_THRESHOLD = 15;
-  const playerScrollEnabled = playerRows.length >= SCROLL_THRESHOLD;
+  const playerScrollEnabled = playerRows.length >= SCROLL_THRESHOLD && !isPlayerListExpanded;
+  const playerExpandToggleVisible = playerRows.length >= SCROLL_THRESHOLD;
   const mapScrollEnabled = mapRows.length >= SCROLL_THRESHOLD;
 
   return (
@@ -506,16 +514,23 @@ export default function ReplayUploader() {
           <article className={`glass-panel flex min-h-0 flex-col p-4 xl:col-span-3 ${playerScrollEnabled ? 'max-h-[34rem]' : ''}`}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-white">Players (average metrics)</h2>
-              <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
-                Min battles
-                <input
-                  type="number"
-                  min={1}
-                  className="input w-16"
-                  value={minBattles}
-                  onChange={(event) => setMinBattles(Math.max(1, Number(event.target.value) || 1))}
-                />
-              </label>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {playerExpandToggleVisible && (
+                  <button type="button" onClick={() => setIsPlayerListExpanded((current) => !current)} className="btn-linkish text-xs sm:text-sm">
+                    {isPlayerListExpanded ? 'Collapse list' : 'Show full list'}
+                  </button>
+                )}
+                <label className="flex items-center gap-2 text-xs text-slate-300 sm:text-sm">
+                  Min battles
+                  <input
+                    type="number"
+                    min={1}
+                    className="input w-16"
+                    value={minBattles}
+                    onChange={(event) => setMinBattles(Math.max(1, Number(event.target.value) || 1))}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className={`table-shell min-h-0 overflow-hidden ${playerScrollEnabled ? 'flex-1' : ''}`}>
@@ -523,6 +538,7 @@ export default function ReplayUploader() {
                 <table className="w-full text-left text-xs sm:text-sm text-slate-100">
                   <thead className="table-head">
                     <tr>
+                      <th className="px-2.5 py-2 text-center">#</th>
                       <SortableHeader label="Player" onClick={() => handleSort('name')} />
                       <SortableHeader center label="Battles" onClick={() => handleSort('battleCount')} />
                       <SortableHeader center label="Avg damage" onClick={() => handleSort('avgDamage')} />
@@ -531,8 +547,9 @@ export default function ReplayUploader() {
                     </tr>
                   </thead>
                   <tbody>
-                    {playerRows.map((row) => (
+                    {playerRows.map((row, index) => (
                       <tr key={row.name} className="table-row">
+                        <td className="px-2.5 py-2 text-center">{index + 1}</td>
                         <td className="px-2.5 py-2">{row.name}</td>
                         <td className="px-2.5 py-2 text-center">{row.battleCount}</td>
                         <td className={`px-2.5 py-2 text-center font-semibold ${getAvgDamageColor(row.avgDamage)}`}>{row.avgDamage.toFixed(0)}</td>
